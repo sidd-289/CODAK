@@ -78,7 +78,7 @@ export function ExternalCodingProfilesSection({
 
   const openVerifyModal = (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => {
     setVerifyModalPlatform(platform);
-    setGithubTab('oauth');
+    setGithubTab('bio');
     setVerifyError(null);
     setVerifySuccess(null);
     setCopiedToken(false);
@@ -352,11 +352,11 @@ export function ExternalCodingProfilesSection({
                   )
                 ) : (
                   <button
-                    onClick={() => openVerifyModal('github')}
+                    onClick={openEditModal}
                     className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700 font-medium transition-all"
-                    title="Connect with GitHub"
+                    title="Link GitHub Handle"
                   >
-                    <span>Connect</span>
+                    <span>+ Link</span>
                   </button>
                 )}
                 {data.githubUsername && (
@@ -732,16 +732,28 @@ export function ExternalCodingProfilesSection({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative w-full max-w-md max-h-[88vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
+            <div className="p-4 sm:p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className="text-sm sm:text-base font-bold text-white">
                     Verify {verifyModalPlatform === 'github' ? 'GitHub' : verifyModalPlatform === 'leetcode' ? 'LeetCode' : verifyModalPlatform === 'codeforces' ? 'Codeforces' : 'CodeChef'} Ownership
                   </h3>
-                  <p className="text-[11px] text-zinc-400">Confirm authentic ownership of your profile</p>
+                  <p className="text-[11px] text-zinc-400">
+                    {verifyModalPlatform === 'github' && data.githubUsername ? (
+                      <>Account: <span className="text-white font-mono font-semibold">@{cleanHandle(data.githubUsername)}</span></>
+                    ) : verifyModalPlatform === 'leetcode' && data.leetcodeHandle ? (
+                      <>Account: <span className="text-white font-mono font-semibold">@{cleanHandle(data.leetcodeHandle)}</span></>
+                    ) : verifyModalPlatform === 'codeforces' && data.codeforcesHandle ? (
+                      <>Account: <span className="text-white font-mono font-semibold">@{cleanHandle(data.codeforcesHandle)}</span></>
+                    ) : verifyModalPlatform === 'codechef' && data.codechefHandle ? (
+                      <>Account: <span className="text-white font-mono font-semibold">@{cleanHandle(data.codechefHandle)}</span></>
+                    ) : (
+                      'Confirm authentic ownership of your profile'
+                    )}
+                  </p>
                 </div>
               </div>
               <button
@@ -809,6 +821,9 @@ export function ExternalCodingProfilesSection({
                     <span>{isRedirectingOAuth ? 'Redirecting to GitHub...' : 'Log in & Link GitHub'}</span>
                     <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" />
                   </button>
+                  <p className="text-[10px] text-zinc-500 text-center leading-normal">
+                    If manual linking is disabled in Supabase, switch to the <strong>Bio Challenge Code</strong> tab to verify instantly.
+                  </p>
                 </div>
               )}
 
