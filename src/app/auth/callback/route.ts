@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { fetchGitHubData, cleanHandle } from '@/lib/external-profiles/fetchers';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -10,13 +12,55 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Automatically sync and verify GitHub profile if linked via OAuth
+      if (user) {
+        const ghIdentity = user.identities?.find((id) => id.provider === 'github');
+        const rawGhUsername =
+          (ghIdentity?.identity_data?.user_name as string) ||
+          (user.user_metadata?.user_name as string) ||
+          (user.user_metadata?.preferred_username as string);
+
+        const ghUsername = cleanHandle(rawGhUsername);
+
+        if (ghUsername) {
+          try {
+            const admin = createAdminClient();
+            const ghData = await fetchGitHubData(ghUsername);
+
+            // Fetch existing coding profile to preserve other platform handles
+            const { data: existing } = await admin
+              .from('student_coding_profiles')
+              .select('*')
+              .eq('student_id', user.id)
+              .maybeSingle();
+
+            await admin.from('student_coding_profiles').upsert(
+              {
+                student_id: user.id,
+                github_username: ghUsername,
+                github_stats: ghData?.stats || existing?.github_stats || {},
+                recent_github_commits: ghData?.commits || existing?.recent_github_commits || [],
+                github_calendar: ghData?.calendar || existing?.github_calendar || {},
+                github_verified: true,
+                verified_at: new Date().toISOString(),
+                last_synced_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'student_id' }
+            );
+          } catch (e) {
+            console.error('Error linking verified GitHub in callback:', e);
+          }
+        }
+      }
+
       // Determine destination: respect explicit non-root next, or resolve by profile role
       let destination = next;
       if (destination === '/' || !destination) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
         if (user) {
           const { data: profile } = await supabase
             .from('profiles')
@@ -60,6 +104,5 @@ export async function GET(request: NextRequest) {
     ? `${forwardedProto}://${forwardedHost}`
     : requestUrl.origin;
 
-  // Redirect to login with error parameter if code exchange fails or is missing
   return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
 }
