@@ -26,6 +26,7 @@ import {
   getStudentCodingProfilesAction,
   saveStudentCodingHandlesAction,
   syncStudentCodingProfilesAction,
+  verifyCodingAccountAction,
 } from '@/app/actions/coding-profiles';
 import { StudentCodingProfilesData } from '@/types/codingProfiles';
 
@@ -249,6 +250,22 @@ export default function StudentProfilePage() {
     }
   };
 
+  const handleVerifyAccount = async (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => {
+    try {
+      const res = await verifyCodingAccountAction({
+        platform,
+        studentId: codingProfiles.studentId || undefined,
+      });
+      if (res.success && res.profile) {
+        setCodingProfiles(res.profile);
+        return { success: true };
+      }
+      return { success: false, error: res.error || 'Verification failed.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Verification error' };
+    }
+  };
+
   const handleOpenEditModal = () => {
     setEditName(studentName);
     setEditRollNo(rollNo);
@@ -396,6 +413,7 @@ export default function StudentProfilePage() {
             data={codingProfiles}
             onSaveHandles={handleSaveCodingHandles}
             onSync={handleSyncCodingProfiles}
+            onVerifyAccount={handleVerifyAccount}
             isSyncing={isSyncingCoding}
             isModalOpen={isCodingModalOpen}
             setIsModalOpen={setIsCodingModalOpen}

@@ -162,6 +162,21 @@ describe('External Coding Profiles & GitHub Commits Integration Suite', () => {
       expect(syncRes.profile?.lastSyncedAt).toBeTruthy();
     });
 
+    it('sanitizes full URLs and handles with domain prefixes gracefully', async () => {
+      const saveRes = await saveStudentCodingHandlesAction({
+        studentId: testStudentId,
+        githubUsername: 'https://github.com/sidd-289/',
+        codeforcesHandle: 'https://codeforces.com/profile/tourist',
+      });
+
+      expect(saveRes.success).toBe(true);
+      expect(saveRes.profile?.githubUsername).toBe('sidd-289');
+      expect(saveRes.profile?.codeforcesHandle).toBe('tourist');
+      expect(saveRes.profile?.githubCalendar?.days.length).toBeGreaterThan(300);
+      expect(saveRes.profile?.verificationToken).toBeTruthy();
+      expect(saveRes.profile?.verificationToken).toMatch(/^CODAK-AUTH-/);
+    });
+
     it('handles empty handles gracefully by setting them to null', async () => {
       const updateRes = await saveStudentCodingHandlesAction({
         studentId: testStudentId,

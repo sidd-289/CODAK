@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { GitHubContributionCalendar, GitHubContributionDay } from '@/types/codingProfiles';
-import { GitCommit, ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
+import { GitCommit, ExternalLink, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
+import { cleanHandle } from '@/lib/external-profiles/fetchers';
 
 interface GitHubContributionGraphProps {
   calendar?: GitHubContributionCalendar | null;
@@ -26,6 +27,7 @@ export function GitHubContributionGraph({
     y: number;
   } | null>(null);
 
+  const cleanUser = cleanHandle(githubUsername);
   const days = calendar?.days || [];
   const totalContributions = calendar?.totalContributions ?? 0;
 
@@ -94,13 +96,13 @@ export function GitHubContributionGraph({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-              {githubUsername
+              {cleanUser
                 ? `${totalContributions.toLocaleString()} contributions in the last year`
                 : 'GitHub Contribution Activity'}
             </h3>
-            {githubUsername && (
+            {cleanUser && (
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                @{githubUsername}
+                @{cleanUser}
               </span>
             )}
           </div>
@@ -110,7 +112,7 @@ export function GitHubContributionGraph({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">
-          {onRefresh && githubUsername && (
+          {onRefresh && cleanUser && (
             <button
               onClick={onRefresh}
               disabled={isSyncing}
@@ -121,9 +123,9 @@ export function GitHubContributionGraph({
             </button>
           )}
 
-          {githubUsername ? (
+          {cleanUser ? (
             <a
-              href={`https://github.com/${githubUsername}`}
+              href={`https://github.com/${cleanUser}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:border-zinc-500 transition-all font-medium"
@@ -143,7 +145,7 @@ export function GitHubContributionGraph({
       </div>
 
       {/* Main Contribution Graph Container */}
-      {githubUsername && days.length > 0 ? (
+      {cleanUser && days.length > 0 ? (
         <div className="rounded-xl border border-zinc-800 bg-[#0d1117] p-4 sm:p-5 overflow-x-auto relative shadow-inner">
           {/* Tooltip */}
           {hoveredDay && (
@@ -235,25 +237,52 @@ export function GitHubContributionGraph({
             </div>
           </div>
         </div>
+      ) : cleanUser ? (
+        /* User linked but calendar syncing or pending */
+        <div className="py-10 flex flex-col items-center justify-center text-center px-4 rounded-xl border border-dashed border-zinc-800 bg-[#0d1117]/50">
+          <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 mb-2">
+            <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+          </div>
+          <h4 className="text-sm font-semibold text-white mb-1">
+            {isSyncing ? 'Syncing Live Heatmap...' : 'Contributions Not Synced Yet'}
+          </h4>
+          <p className="text-xs text-zinc-400 max-w-sm mb-4">
+            Linked to @{cleanUser}. Click below to fetch your public 365-day contribution calendar directly from GitHub.
+          </p>
+          <div className="flex items-center gap-2">
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={isSyncing}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Syncing...' : 'Sync Contributions Now'}</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenConnectModal}
+              className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-all"
+            >
+              Edit Username
+            </button>
+          </div>
+        </div>
       ) : (
         /* Empty State */
         <div className="py-10 flex flex-col items-center justify-center text-center px-4 rounded-xl border border-dashed border-zinc-800 bg-[#0d1117]/50">
           <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 mb-2">
             <GitCommit className="w-5 h-5" />
           </div>
-          <h4 className="text-sm font-semibold text-white mb-1">
-            {githubUsername ? 'Loading Contribution Heatmap...' : 'No GitHub Account Connected'}
-          </h4>
+          <h4 className="text-sm font-semibold text-white mb-1">No GitHub Account Connected</h4>
           <p className="text-xs text-zinc-400 max-w-sm mb-4">
-            {githubUsername
-              ? 'Fetching your public GitHub contributions and commit frequency...'
-              : 'Link your GitHub username in the profile to display your authentic 365-day contribution calendar.'}
+            Link your GitHub username in the profile to display your authentic 365-day contribution calendar.
           </p>
           <button
             onClick={onOpenConnectModal}
             className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 transition-all"
           >
-            {githubUsername ? 'Edit GitHub Username' : 'Connect GitHub'}
+            Connect GitHub
           </button>
         </div>
       )}

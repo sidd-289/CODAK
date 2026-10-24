@@ -4,11 +4,18 @@ import { createClient as createServerClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { StudentCodingProfilesData } from '@/types/codingProfiles';
 import {
+  cleanHandle,
   fetchGitHubData,
   fetchCodeforcesData,
   fetchLeetCodeData,
   fetchCodeChefData,
+  verifyPlatformBio,
 } from '@/lib/external-profiles/fetchers';
+
+function generateVerificationToken(studentId: string): string {
+  const cleanId = studentId.replace(/-/g, '').slice(0, 8).toUpperCase();
+  return `CODAK-AUTH-${cleanId}`;
+}
 
 /**
  * 1. Fetch student's external coding profiles and synced commits
@@ -53,6 +60,8 @@ export async function getStudentCodingProfilesAction(
       console.error('Error fetching coding profiles row:', fetchErr);
     }
 
+    const defaultToken = generateVerificationToken(studentId);
+
     if (!row) {
       // Clean default profile with null handles
       return {
@@ -70,6 +79,12 @@ export async function getStudentCodingProfilesAction(
           recentGithubCommits: [],
           githubCalendar: null,
           lastSyncedAt: null,
+          verificationToken: defaultToken,
+          githubVerified: false,
+          leetcodeVerified: false,
+          codeforcesVerified: false,
+          codechefVerified: false,
+          verifiedAt: null,
         },
       };
     }
@@ -87,8 +102,14 @@ export async function getStudentCodingProfilesAction(
         codeforcesStats: row.codeforces_stats && Object.keys(row.codeforces_stats).length > 0 ? row.codeforces_stats : null,
         codechefStats: row.codechef_stats && Object.keys(row.codechef_stats).length > 0 ? row.codechef_stats : null,
         recentGithubCommits: Array.isArray(row.recent_github_commits) ? row.recent_github_commits : [],
-        githubCalendar: row.github_calendar && row.github_calendar.days ? row.github_calendar : null,
+        githubCalendar: row.github_calendar && Array.isArray(row.github_calendar.days) ? row.github_calendar : null,
         lastSyncedAt: row.last_synced_at || null,
+        verificationToken: row.verification_token || defaultToken,
+        githubVerified: !!row.github_verified,
+        leetcodeVerified: !!row.leetcode_verified,
+        codeforcesVerified: !!row.codeforces_verified,
+        codechefVerified: !!row.codechef_verified,
+        verifiedAt: row.verified_at || null,
       },
     };
   } catch (err: any) {
@@ -132,10 +153,20 @@ export async function saveStudentCodingHandlesAction(input: {
       return { success: false, error: 'Unauthorized: Student account required.' };
     }
 
-    const cleanLeetcode = (input.leetcodeHandle || '').trim() || null;
-    const cleanGithub = (input.githubUsername || '').trim().replace(/^@/, '') || null;
-    const cleanCodeforces = (input.codeforcesHandle || '').trim() || null;
-    const cleanCodechef = (input.codechefHandle || '').trim() || null;
+    // Always sanitize handle inputs to strip full URLs, domain prefixes, and @ symbols
+    const cleanLeetcode = cleanHandle(input.leetcodeHandle);
+    const cleanGithub = cleanHandle(input.githubUsername);
+    const cleanCodeforces = cleanHandle(input.codeforcesHandle);
+    const cleanCodechef = cleanHandle(input.codechefHandle);
+
+    // Fetch existing row to check if handles changed (which resets verification status)
+    const { data: existing } = await adminClient
+      .from('student_coding_profiles')
+      .select('*')
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    const verificationToken = existing?.verification_token || generateVerificationToken(studentId);
 
     // Fetch REAL data from each platform in parallel
     const [ghData, cfStats, lcStats, ccStats] = await Promise.all([
@@ -157,6 +188,12 @@ export async function saveStudentCodingHandlesAction(input: {
       codeforces_stats: cfStats || {},
       leetcode_stats: lcStats || {},
       codechef_stats: ccStats || {},
+      verification_token: verificationToken,
+      // If handle changed, reset verification
+      github_verified: cleanGithub === existing?.github_username ? (existing?.github_verified ?? false) : false,
+      leetcode_verified: cleanLeetcode === existing?.leetcode_handle ? (existing?.leetcode_verified ?? false) : false,
+      codeforces_verified: cleanCodeforces === existing?.codeforces_handle ? (existing?.codeforces_verified ?? false) : false,
+      codechef_verified: cleanCodechef === existing?.codechef_handle ? (existing?.codechef_verified ?? false) : false,
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -187,6 +224,12 @@ export async function saveStudentCodingHandlesAction(input: {
         recentGithubCommits: ghData?.commits || [],
         githubCalendar: ghData?.calendar || null,
         lastSyncedAt: upserted.last_synced_at,
+        verificationToken: upserted.verification_token,
+        githubVerified: upserted.github_verified,
+        leetcodeVerified: upserted.leetcode_verified,
+        codeforcesVerified: upserted.codeforces_verified,
+        codechefVerified: upserted.codechef_verified,
+        verifiedAt: upserted.verified_at,
       },
     };
   } catch (err: any) {
@@ -233,10 +276,12 @@ export async function syncStudentCodingProfilesAction(
       .eq('student_id', studentId)
       .maybeSingle();
 
-    const ghHandle = current?.github_username || null;
-    const cfHandle = current?.codeforces_handle || null;
-    const lcHandle = current?.leetcode_handle || null;
-    const ccHandle = current?.codechef_handle || null;
+    const ghHandle = cleanHandle(current?.github_username);
+    const cfHandle = cleanHandle(current?.codeforces_handle);
+    const lcHandle = cleanHandle(current?.leetcode_handle);
+    const ccHandle = cleanHandle(current?.codechef_handle);
+
+    const verificationToken = current?.verification_token || generateVerificationToken(studentId);
 
     if (!ghHandle && !cfHandle && !lcHandle && !ccHandle) {
       return {
@@ -254,6 +299,12 @@ export async function syncStudentCodingProfilesAction(
           recentGithubCommits: [],
           githubCalendar: null,
           lastSyncedAt: null,
+          verificationToken,
+          githubVerified: false,
+          leetcodeVerified: false,
+          codeforcesVerified: false,
+          codechefVerified: false,
+          verifiedAt: null,
         },
       };
     }
@@ -278,6 +329,11 @@ export async function syncStudentCodingProfilesAction(
       codeforces_stats: cfStats || (cfHandle ? current?.codeforces_stats : {}) || {},
       leetcode_stats: lcStats || (lcHandle ? current?.leetcode_stats : {}) || {},
       codechef_stats: ccStats || (ccHandle ? current?.codechef_stats : {}) || {},
+      verification_token: verificationToken,
+      github_verified: current?.github_verified ?? false,
+      leetcode_verified: current?.leetcode_verified ?? false,
+      codeforces_verified: current?.codeforces_verified ?? false,
+      codechef_verified: current?.codechef_verified ?? false,
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -301,17 +357,129 @@ export async function syncStudentCodingProfilesAction(
         githubUsername: updated.github_username,
         codeforcesHandle: updated.codeforces_handle,
         codechefHandle: updated.codechef_handle,
-        githubStats: updated.github_stats && Object.keys(updated.github_stats).length > 0 ? updated.github_stats : null,
-        leetcodeStats: updated.leetcode_stats && Object.keys(updated.leetcode_stats).length > 0 ? updated.leetcode_stats : null,
-        codeforcesStats: updated.codeforces_stats && Object.keys(updated.codeforces_stats).length > 0 ? updated.codeforces_stats : null,
-        codechefStats: updated.codechef_stats && Object.keys(updated.codechef_stats).length > 0 ? updated.codechef_stats : null,
-        recentGithubCommits: Array.isArray(updated.recent_github_commits) ? updated.recent_github_commits : [],
-        githubCalendar: updated.github_calendar && updated.github_calendar.days ? updated.github_calendar : null,
+        githubStats: ghData?.stats || null,
+        leetcodeStats: lcStats || null,
+        codeforcesStats: cfStats || null,
+        codechefStats: ccStats || null,
+        recentGithubCommits: ghData?.commits || [],
+        githubCalendar: ghData?.calendar || null,
         lastSyncedAt: updated.last_synced_at,
+        verificationToken: updated.verification_token,
+        githubVerified: updated.github_verified,
+        leetcodeVerified: updated.leetcode_verified,
+        codeforcesVerified: updated.codeforces_verified,
+        codechefVerified: updated.codechef_verified,
+        verifiedAt: updated.verified_at,
       },
     };
   } catch (err: any) {
     console.error('syncStudentCodingProfilesAction exception:', err);
-    return { success: false, error: err.message || 'Sync failed' };
+    return { success: false, error: err.message || 'Failed to sync profiles' };
+  }
+}
+
+/**
+ * 4. Verify Account Ownership via Bio Challenge Token
+ */
+export async function verifyCodingAccountAction(input: {
+  platform: 'github' | 'leetcode' | 'codeforces' | 'codechef';
+  studentId?: string;
+}): Promise<{ success: boolean; verified?: boolean; profile?: StudentCodingProfilesData; error?: string }> {
+  try {
+    const supabaseServer = await createServerClient();
+    const {
+      data: { user },
+    } = await supabaseServer.auth.getUser();
+
+    let studentId = input.studentId || user?.id;
+    const adminClient = createAdminClient();
+
+    if (!studentId) {
+      const { data: demoStudent } = await adminClient
+        .from('students')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (demoStudent) {
+        studentId = demoStudent.id;
+      }
+    }
+
+    if (!studentId) {
+      return { success: false, error: 'Unauthorized: Student required.' };
+    }
+
+    const { data: current } = await adminClient
+      .from('student_coding_profiles')
+      .select('*')
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    if (!current) {
+      return { success: false, error: 'No coding profile found. Please link your handles first.' };
+    }
+
+    const token = current.verification_token || generateVerificationToken(studentId);
+    let handleToVerify: string | null = null;
+    let verifiedCol = '';
+
+    switch (input.platform) {
+      case 'github':
+        handleToVerify = current.github_username;
+        verifiedCol = 'github_verified';
+        break;
+      case 'leetcode':
+        handleToVerify = current.leetcode_handle;
+        verifiedCol = 'leetcode_verified';
+        break;
+      case 'codeforces':
+        handleToVerify = current.codeforces_handle;
+        verifiedCol = 'codeforces_verified';
+        break;
+      case 'codechef':
+        handleToVerify = current.codechef_handle;
+        verifiedCol = 'codechef_verified';
+        break;
+    }
+
+    if (!handleToVerify) {
+      return { success: false, error: `No ${input.platform} handle linked yet. Please add it first.` };
+    }
+
+    const verifyResult = await verifyPlatformBio(input.platform, handleToVerify, token);
+
+    if (!verifyResult.verified) {
+      return {
+        success: false,
+        verified: false,
+        error: verifyResult.error || `Could not find verification code "${token}" on your ${input.platform} profile.`,
+      };
+    }
+
+    // Update verified flag in DB
+    const updates: Record<string, any> = {
+      [verifiedCol]: true,
+      verified_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateErr } = await adminClient
+      .from('student_coding_profiles')
+      .update(updates)
+      .eq('student_id', studentId);
+
+    if (updateErr) {
+      return { success: false, error: 'Database update failed: ' + updateErr.message };
+    }
+
+    const res = await getStudentCodingProfilesAction(studentId);
+    return {
+      success: true,
+      verified: true,
+      profile: res.profile || undefined,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Verification check failed' };
   }
 }

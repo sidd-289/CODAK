@@ -7,13 +7,16 @@ import {
   Edit2,
   RefreshCw,
   Code2,
-  Trophy,
   CheckCircle,
   X,
   AlertCircle,
-  Layers,
+  ShieldCheck,
+  ShieldAlert,
+  Copy,
+  Check,
   Sparkles,
 } from 'lucide-react';
+import { cleanHandle } from '@/lib/external-profiles/fetchers';
 
 interface ExternalCodingProfilesSectionProps {
   data: StudentCodingProfilesData;
@@ -24,6 +27,7 @@ interface ExternalCodingProfilesSectionProps {
     codechefHandle?: string | null;
   }) => Promise<{ success: boolean; error?: string }>;
   onSync: () => Promise<void>;
+  onVerifyAccount?: (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => Promise<{ success: boolean; error?: string }>;
   isSyncing: boolean;
   isModalOpen: boolean;
   setIsModalOpen: (open: boolean) => void;
@@ -33,6 +37,7 @@ export function ExternalCodingProfilesSection({
   data,
   onSaveHandles,
   onSync,
+  onVerifyAccount,
   isSyncing,
   isModalOpen,
   setIsModalOpen,
@@ -46,17 +51,56 @@ export function ExternalCodingProfilesSection({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Verification modal state
+  const [verifyModalPlatform, setVerifyModalPlatform] = useState<'github' | 'leetcode' | 'codeforces' | 'codechef' | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
+
+  const verificationToken = data.verificationToken || 'CODAK-AUTH-STUDENT';
+
   // Sync state into inputs when modal opens
   const openEditModal = () => {
-    setLeetcodeInput(data.leetcodeHandle || '');
-    setGithubInput(data.githubUsername || '');
-    setCodeforcesInput(data.codeforcesHandle || '');
-    setCodechefInput(data.codechefHandle || '');
+    setLeetcodeInput(cleanHandle(data.leetcodeHandle) || '');
+    setGithubInput(cleanHandle(data.githubUsername) || '');
+    setCodeforcesInput(cleanHandle(data.codeforcesHandle) || '');
+    setCodechefInput(cleanHandle(data.codechefHandle) || '');
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsModalOpen(true);
   };
 
+  const openVerifyModal = (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => {
+    setVerifyModalPlatform(platform);
+    setVerifyError(null);
+    setVerifySuccess(null);
+    setCopiedToken(false);
+  };
+
+  const handleCopyToken = () => {
+    navigator.clipboard.writeText(verificationToken);
+    setCopiedToken(true);
+    setTimeout(() => setCopiedToken(false), 2000);
+  };
+
+  const handleExecuteVerification = async () => {
+    if (!verifyModalPlatform || !onVerifyAccount) return;
+    setIsVerifying(true);
+    setVerifyError(null);
+    setVerifySuccess(null);
+
+    const res = await onVerifyAccount(verifyModalPlatform);
+    setIsVerifying(false);
+    if (!res.success) {
+      setVerifyError(res.error || 'Verification code not found. Make sure you saved your profile bio and try again.');
+    } else {
+      setVerifySuccess('Account successfully verified! Genuine ownership confirmed.');
+      setTimeout(() => {
+        setVerifyModalPlatform(null);
+      }, 1500);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,17 +109,17 @@ export function ExternalCodingProfilesSection({
     setSuccessMessage(null);
 
     const res = await onSaveHandles({
-      leetcodeHandle: leetcodeInput,
-      githubUsername: githubInput,
-      codeforcesHandle: codeforcesInput,
-      codechefHandle: codechefInput,
+      leetcodeHandle: cleanHandle(leetcodeInput),
+      githubUsername: cleanHandle(githubInput),
+      codeforcesHandle: cleanHandle(codeforcesInput),
+      codechefHandle: cleanHandle(codechefInput),
     });
 
     setSaving(false);
     if (!res.success) {
       setErrorMessage(res.error || 'Failed to update coding profiles.');
     } else {
-      setSuccessMessage('Coding profiles updated and synced successfully!');
+      setSuccessMessage('Coding profiles updated and live stats synced!');
       setTimeout(() => {
         setIsModalOpen(false);
       }, 1200);
@@ -92,10 +136,23 @@ export function ExternalCodingProfilesSection({
     }
   };
 
+  const getPlatformProfileUrl = (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => {
+    switch (platform) {
+      case 'github':
+        return `https://github.com/settings/profile`;
+      case 'leetcode':
+        return `https://leetcode.com/profile/`;
+      case 'codeforces':
+        return `https://codeforces.com/settings/social`;
+      case 'codechef':
+        return `https://www.codechef.com/users/${data.codechefHandle}`;
+    }
+  };
+
   return (
     <div className="relative rounded-2xl bg-zinc-950/70 border border-zinc-800/80 p-5 md:p-6 backdrop-blur-xl shadow-2xl overflow-hidden mb-8">
-      {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800/60">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/60">
         <div>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/20 to-sky-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -155,16 +212,33 @@ export function ExternalCodingProfilesSection({
                   </p>
                 </div>
               </div>
-              {data.leetcodeHandle && (
-                <a
-                  href={`https://leetcode.com/u/${data.leetcodeHandle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-500 hover:text-amber-400 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
+              <div className="flex items-center gap-1.5">
+                {data.leetcodeHandle && (
+                  data.leetcodeVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold" title="Verified Account Owner">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => openVerifyModal('leetcode')}
+                      className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 font-medium transition-all"
+                      title="Click to verify account ownership"
+                    >
+                      <ShieldAlert className="w-2.5 h-2.5" /> Verify
+                    </button>
+                  )
+                )}
+                {data.leetcodeHandle && (
+                  <a
+                    href={`https://leetcode.com/u/${data.leetcodeHandle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-500 hover:text-amber-400 transition-colors ml-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
             </div>
 
             {data.leetcodeStats ? (
@@ -219,20 +293,37 @@ export function ExternalCodingProfilesSection({
                 <div>
                   <h4 className="text-xs font-bold text-zinc-200">GitHub</h4>
                   <p className="text-[10px] text-zinc-500 font-mono truncate max-w-[100px]">
-                    {data.githubUsername ? `@${data.githubUsername}` : 'Not linked'}
+                    {data.githubUsername ? `@${cleanHandle(data.githubUsername)}` : 'Not linked'}
                   </p>
                 </div>
               </div>
-              {data.githubUsername && (
-                <a
-                  href={`https://github.com/${data.githubUsername}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-500 hover:text-sky-400 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
+              <div className="flex items-center gap-1.5">
+                {data.githubUsername && (
+                  data.githubVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold" title="Verified Account Owner">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => openVerifyModal('github')}
+                      className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 font-medium transition-all"
+                      title="Click to verify account ownership"
+                    >
+                      <ShieldAlert className="w-2.5 h-2.5" /> Verify
+                    </button>
+                  )
+                )}
+                {data.githubUsername && (
+                  <a
+                    href={`https://github.com/${cleanHandle(data.githubUsername)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-500 hover:text-sky-400 transition-colors ml-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
             </div>
 
             {data.githubStats ? (
@@ -288,16 +379,33 @@ export function ExternalCodingProfilesSection({
                   </p>
                 </div>
               </div>
-              {data.codeforcesHandle && (
-                <a
-                  href={`https://codeforces.com/profile/${data.codeforcesHandle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-500 hover:text-indigo-400 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
+              <div className="flex items-center gap-1.5">
+                {data.codeforcesHandle && (
+                  data.codeforcesVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold" title="Verified Account Owner">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => openVerifyModal('codeforces')}
+                      className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 font-medium transition-all"
+                      title="Click to verify account ownership"
+                    >
+                      <ShieldAlert className="w-2.5 h-2.5" /> Verify
+                    </button>
+                  )
+                )}
+                {data.codeforcesHandle && (
+                  <a
+                    href={`https://codeforces.com/profile/${data.codeforcesHandle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-500 hover:text-indigo-400 transition-colors ml-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
             </div>
 
             {data.codeforcesStats ? (
@@ -355,16 +463,33 @@ export function ExternalCodingProfilesSection({
                   </p>
                 </div>
               </div>
-              {data.codechefHandle && (
-                <a
-                  href={`https://www.codechef.com/users/${data.codechefHandle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-500 hover:text-amber-500 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
+              <div className="flex items-center gap-1.5">
+                {data.codechefHandle && (
+                  data.codechefVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold" title="Verified Account Owner">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => openVerifyModal('codechef')}
+                      className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 font-medium transition-all"
+                      title="Click to verify account ownership"
+                    >
+                      <ShieldAlert className="w-2.5 h-2.5" /> Verify
+                    </button>
+                  )
+                )}
+                {data.codechefHandle && (
+                  <a
+                    href={`https://www.codechef.com/users/${data.codechefHandle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-500 hover:text-amber-500 transition-colors ml-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
             </div>
 
             {data.codechefStats ? (
@@ -419,15 +544,12 @@ export function ExternalCodingProfilesSection({
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-sky-400" />
-              <h3 className="text-base font-bold text-white">
-                Link External Coding Profiles
-              </h3>
+            <div className="mb-5">
+              <h3 className="text-lg font-bold text-white">Link Coding Profiles</h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                Enter your username or profile URL on LeetCode, GitHub, Codeforces, and CodeChef.
+              </p>
             </div>
-            <p className="text-xs text-zinc-400 mb-5">
-              Enter your official public usernames on LeetCode, GitHub, Codeforces, and CodeChef to aggregate ratings and sync commits into your student profile.
-            </p>
 
             {errorMessage && (
               <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
@@ -456,7 +578,7 @@ export function ExternalCodingProfilesSection({
                   <input
                     type="text"
                     value={leetcodeInput}
-                    onChange={(e) => setLeetcodeInput(e.target.value)}
+                    onChange={(e) => setLeetcodeInput(cleanHandle(e.target.value) || e.target.value)}
                     placeholder="your_leetcode_handle"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-32 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
                   />
@@ -475,7 +597,7 @@ export function ExternalCodingProfilesSection({
                   <input
                     type="text"
                     value={githubInput}
-                    onChange={(e) => setGithubInput(e.target.value)}
+                    onChange={(e) => setGithubInput(cleanHandle(e.target.value) || e.target.value)}
                     placeholder="your_github_username"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-28 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
                   />
@@ -494,7 +616,7 @@ export function ExternalCodingProfilesSection({
                   <input
                     type="text"
                     value={codeforcesInput}
-                    onChange={(e) => setCodeforcesInput(e.target.value)}
+                    onChange={(e) => setCodeforcesInput(cleanHandle(e.target.value) || e.target.value)}
                     placeholder="your_codeforces_handle"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-44 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
                   />
@@ -513,7 +635,7 @@ export function ExternalCodingProfilesSection({
                   <input
                     type="text"
                     value={codechefInput}
-                    onChange={(e) => setCodechefInput(e.target.value)}
+                    onChange={(e) => setCodechefInput(cleanHandle(e.target.value) || e.target.value)}
                     placeholder="your_codechef_handle"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-36 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-600/50"
                   />
@@ -539,6 +661,112 @@ export function ExternalCodingProfilesSection({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Account Ownership Verification Modal */}
+      {verifyModalPlatform && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-2xl bg-zinc-950 border border-zinc-800 p-6 shadow-2xl">
+            <button
+              onClick={() => setVerifyModalPlatform(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  Verify {verifyModalPlatform === 'github' ? 'GitHub' : verifyModalPlatform === 'leetcode' ? 'LeetCode' : verifyModalPlatform === 'codeforces' ? 'Codeforces' : 'CodeChef'} Ownership
+                </h3>
+                <p className="text-[11px] text-zinc-400">Prove authentic ownership of your profile</p>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 text-xs space-y-2.5">
+              <p className="text-zinc-300 leading-relaxed">
+                Add this unique challenge code to your public{' '}
+                <strong className="text-white capitalize">{verifyModalPlatform}</strong>{' '}
+                {verifyModalPlatform === 'github' ? 'Bio or create a public Gist' : verifyModalPlatform === 'leetcode' ? 'About Me / Summary' : verifyModalPlatform === 'codeforces' ? 'Organization or City' : 'Bio'}:
+              </p>
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-black border border-zinc-800">
+                <code className="text-xs font-mono font-bold text-emerald-400 tracking-wider">
+                  {verificationToken}
+                </code>
+                <button
+                  onClick={handleCopyToken}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px] font-medium text-white transition-all active:scale-95"
+                >
+                  {copiedToken ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-zinc-400" />
+                      <span>Copy Code</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="text-[11px] text-zinc-500 flex items-center justify-between pt-1">
+                <span>1. Copy code</span>
+                <span>2. Paste into Bio</span>
+                <span>3. Click Verify below</span>
+              </div>
+            </div>
+
+            {verifyError && (
+              <div className="mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{verifyError}</span>
+              </div>
+            )}
+
+            {verifySuccess && (
+              <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                <span>{verifySuccess}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3 mt-6 pt-3 border-t border-zinc-800">
+              <a
+                href={getPlatformProfileUrl(verifyModalPlatform)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-sky-400 hover:underline"
+              >
+                <span>Edit Profile on {verifyModalPlatform}</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVerifyModalPlatform(null)}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleExecuteVerification}
+                  disabled={isVerifying}
+                  className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isVerifying && <RefreshCw className="w-3 h-3 animate-spin" />}
+                  <span>{isVerifying ? 'Checking...' : 'Check & Verify'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

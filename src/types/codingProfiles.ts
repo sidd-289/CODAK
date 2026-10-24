@@ -79,4 +79,10 @@ export interface StudentCodingProfilesData {
   recentGithubCommits: GitHubCommitItem[];
   githubCalendar?: GitHubContributionCalendar | null;
   lastSyncedAt: string | null;
+  verificationToken?: string | null;
+  githubVerified?: boolean;
+  leetcodeVerified?: boolean;
+  codeforcesVerified?: boolean;
+  codechefVerified?: boolean;
+  verifiedAt?: string | null;
 }
