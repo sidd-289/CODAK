@@ -115,11 +115,18 @@ export function ExternalCodingProfilesSection({
         return;
       }
 
-      // If linking fails, show exact error and provide Bio Challenge fallback
+      // If linking fails, show helpful error and switch to Bio Challenge fallback
       setGithubTab('bio');
-      setVerifyError(
-        linkErr?.message || 'OAuth linking failed. You can verify your account instantly using the Bio Challenge below.'
-      );
+      const msg = linkErr?.message || '';
+      if (msg.toLowerCase().includes('provider is not enabled')) {
+        setVerifyError(
+          'GitHub OAuth is not enabled in your Supabase project (Authentication -> Providers -> GitHub). Use the instant Bio Challenge below — no OAuth setup required!'
+        );
+      } else {
+        setVerifyError(
+          msg || 'OAuth linking failed. You can verify your account instantly using the Bio Challenge below.'
+        );
+      }
       setIsRedirectingOAuth(false);
     } catch (err: any) {
       setGithubTab('bio');
