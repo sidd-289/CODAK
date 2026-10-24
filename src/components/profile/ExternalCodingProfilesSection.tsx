@@ -78,7 +78,7 @@ export function ExternalCodingProfilesSection({
 
   const openVerifyModal = (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => {
     setVerifyModalPlatform(platform);
-    setGithubTab('bio');
+    setGithubTab('oauth');
     setVerifyError(null);
     setVerifySuccess(null);
     setCopiedToken(false);
@@ -109,10 +109,10 @@ export function ExternalCodingProfilesSection({
         return;
       }
 
-      // If manual linking is not enabled in Supabase settings, switch tab to Bio Challenge
+      // If linking fails, show exact error and provide Bio Challenge fallback
       setGithubTab('bio');
       setVerifyError(
-        'Manual linking is disabled in Supabase Auth settings. You can verify your account instantly using the Bio Challenge below.'
+        linkErr?.message || 'OAuth linking failed. You can verify your account instantly using the Bio Challenge below.'
       );
       setIsRedirectingOAuth(false);
     } catch (err: any) {
