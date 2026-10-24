@@ -56,6 +56,7 @@ export function ExternalCodingProfilesSection({
 
   // Verification modal state
   const [verifyModalPlatform, setVerifyModalPlatform] = useState<'github' | 'leetcode' | 'codeforces' | 'codechef' | null>(null);
+  const [githubTab, setGithubTab] = useState<'oauth' | 'bio'>('oauth');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isRedirectingOAuth, setIsRedirectingOAuth] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -77,6 +78,7 @@ export function ExternalCodingProfilesSection({
 
   const openVerifyModal = (platform: 'github' | 'leetcode' | 'codeforces' | 'codechef') => {
     setVerifyModalPlatform(platform);
+    setGithubTab('oauth');
     setVerifyError(null);
     setVerifySuccess(null);
     setCopiedToken(false);
@@ -95,29 +97,27 @@ export function ExternalCodingProfilesSection({
     setVerifyError(null);
     try {
       const origin = window.location.origin;
-      const { data: linkData, error } = await supabase.auth.linkIdentity({
+      const { data: linkData, error: linkErr } = await supabase.auth.linkIdentity({
         provider: 'github',
         options: {
           redirectTo: `${origin}/auth/callback?next=/student/profile?github_verified=1`,
         },
       });
 
-      if (error) {
-        console.warn('Supabase linkIdentity error:', error.message);
-        setVerifyError(
-          `OAuth Notice: ${error.message}. (Ensure GitHub Provider is enabled in Supabase Authentication Settings). You can also verify via the Bio challenge code below.`
-        );
-        setIsRedirectingOAuth(false);
+      if (!linkErr && linkData?.url) {
+        window.location.href = linkData.url;
         return;
       }
 
-      if (linkData?.url) {
-        window.location.href = linkData.url;
-      } else {
-        setIsRedirectingOAuth(false);
-      }
+      // If manual linking is not enabled in Supabase settings, switch tab to Bio Challenge
+      setGithubTab('bio');
+      setVerifyError(
+        'Manual linking is disabled in Supabase Auth settings. You can verify your account instantly using the Bio Challenge below.'
+      );
+      setIsRedirectingOAuth(false);
     } catch (err: any) {
-      setVerifyError(err.message || 'Failed to start GitHub OAuth redirect');
+      setGithubTab('bio');
+      setVerifyError(err.message || 'OAuth redirect unavailable. Use the Bio Challenge below.');
       setIsRedirectingOAuth(false);
     }
   };
@@ -345,22 +345,18 @@ export function ExternalCodingProfilesSection({
                     <button
                       onClick={() => openVerifyModal('github')}
                       className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 font-medium transition-all"
-                      title="Click to verify account via 1-Click OAuth or Bio"
+                      title="Click to verify account ownership"
                     >
                       <ShieldAlert className="w-2.5 h-2.5" /> Verify
                     </button>
                   )
                 ) : (
                   <button
-                    onClick={handleGitHubOAuthRedirect}
-                    disabled={isRedirectingOAuth}
+                    onClick={() => openVerifyModal('github')}
                     className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700 font-medium transition-all"
-                    title="1-Click OAuth Connect with GitHub"
+                    title="Connect with GitHub"
                   >
-                    <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24">
-                      <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                    </svg>
-                    <span>OAuth</span>
+                    <span>Connect</span>
                   </button>
                 )}
                 {data.githubUsername && (
@@ -405,12 +401,11 @@ export function ExternalCodingProfilesSection({
                 <p className="text-xs text-zinc-500">No GitHub handle linked</p>
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <button
-                    onClick={handleGitHubOAuthRedirect}
-                    disabled={isRedirectingOAuth}
+                    onClick={() => openVerifyModal('github')}
                     className="text-[11px] font-semibold text-emerald-400 hover:underline flex items-center gap-1"
                   >
                     <Sparkles className="w-3 h-3" />
-                    <span>Login with GitHub</span>
+                    <span>Connect GitHub</span>
                   </button>
                   <span className="text-zinc-600 text-xs">•</span>
                   <button
@@ -596,181 +591,211 @@ export function ExternalCodingProfilesSection({
 
       {/* Edit Handles Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg rounded-2xl bg-zinc-950 border border-zinc-800 p-6 shadow-2xl">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="mb-5">
-              <h3 className="text-lg font-bold text-white">Link Coding Profiles</h3>
-              <p className="text-xs text-zinc-400 mt-1">
-                Enter your username or profile URL on LeetCode, GitHub, Codeforces, and CodeChef.
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg max-h-[88vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-white">Link Coding Profiles</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Enter your username or profile URL on LeetCode, GitHub, Codeforces, and CodeChef.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {errorMessage && (
-              <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 shrink-0" />
-                <span>{successMessage}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSave} className="space-y-4">
-              {/* LeetCode */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">
-                  LeetCode Username
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
-                    leetcode.com/u/
-                  </span>
-                  <input
-                    type="text"
-                    value={leetcodeInput}
-                    onChange={(e) => setLeetcodeInput(cleanHandle(e.target.value) || e.target.value)}
-                    placeholder="your_leetcode_handle"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-32 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
-                  />
+            {/* Scrollable Form Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+              {errorMessage && (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
                 </div>
-              </div>
+              )}
 
-              {/* GitHub */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-zinc-300">
+              {successMessage && (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
+
+              <form id="link-handles-form" onSubmit={handleSave} className="space-y-4">
+                {/* LeetCode */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">
+                    LeetCode Username
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                      leetcode.com/u/
+                    </span>
+                    <input
+                      type="text"
+                      value={leetcodeInput}
+                      onChange={(e) => setLeetcodeInput(cleanHandle(e.target.value) || e.target.value)}
+                      placeholder="your_leetcode_handle"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-32 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+                </div>
+
+                {/* GitHub */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">
                     GitHub Username
                   </label>
-                  <button
-                    type="button"
-                    onClick={handleGitHubOAuthRedirect}
-                    disabled={isRedirectingOAuth}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>Auto-fill with GitHub Login</span>
-                  </button>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                      github.com/
+                    </span>
+                    <input
+                      type="text"
+                      value={githubInput}
+                      onChange={(e) => setGithubInput(cleanHandle(e.target.value) || e.target.value)}
+                      placeholder="your_github_username"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-28 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
-                    github.com/
-                  </span>
-                  <input
-                    type="text"
-                    value={githubInput}
-                    onChange={(e) => setGithubInput(cleanHandle(e.target.value) || e.target.value)}
-                    placeholder="your_github_username"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-28 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
-                  />
-                </div>
-              </div>
 
-              {/* Codeforces */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">
-                  Codeforces Handle
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
-                    codeforces.com/profile/
-                  </span>
-                  <input
-                    type="text"
-                    value={codeforcesInput}
-                    onChange={(e) => setCodeforcesInput(cleanHandle(e.target.value) || e.target.value)}
-                    placeholder="your_codeforces_handle"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-44 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
-                  />
+                {/* Codeforces */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">
+                    Codeforces Handle
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                      codeforces.com/profile/
+                    </span>
+                    <input
+                      type="text"
+                      value={codeforcesInput}
+                      onChange={(e) => setCodeforcesInput(cleanHandle(e.target.value) || e.target.value)}
+                      placeholder="your_codeforces_handle"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-44 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* CodeChef */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">
-                  CodeChef Username
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
-                    codechef.com/users/
-                  </span>
-                  <input
-                    type="text"
-                    value={codechefInput}
-                    onChange={(e) => setCodechefInput(cleanHandle(e.target.value) || e.target.value)}
-                    placeholder="your_codechef_handle"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-36 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-600/50"
-                  />
+                {/* CodeChef */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">
+                    CodeChef Username
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                      codechef.com/users/
+                    </span>
+                    <input
+                      type="text"
+                      value={codechefInput}
+                      onChange={(e) => setCodechefInput(cleanHandle(e.target.value) || e.target.value)}
+                      placeholder="your_codechef_handle"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-36 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-600/50"
+                    />
+                  </div>
                 </div>
-              </div>
+              </form>
+            </div>
 
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-sky-900/40 disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {saving && <RefreshCw className="w-3 h-3 animate-spin" />}
-                  <span>{saving ? 'Saving & Syncing...' : 'Save & Sync Profiles'}</span>
-                </button>
-              </div>
-            </form>
+            {/* Sticky Actions Footer */}
+            <div className="p-4 bg-zinc-950/90 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="link-handles-form"
+                disabled={saving}
+                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-sky-900/40 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {saving && <RefreshCw className="w-3 h-3 animate-spin" />}
+                <span>{saving ? 'Saving & Syncing...' : 'Save & Sync Profiles'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Account Ownership Verification Modal */}
       {verifyModalPlatform && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-2xl bg-zinc-950 border border-zinc-800 p-6 shadow-2xl">
-            <button
-              onClick={() => setVerifyModalPlatform(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <ShieldCheck className="w-4 h-4" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md max-h-[88vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Verify {verifyModalPlatform === 'github' ? 'GitHub' : verifyModalPlatform === 'leetcode' ? 'LeetCode' : verifyModalPlatform === 'codeforces' ? 'Codeforces' : 'CodeChef'} Ownership
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">Confirm authentic ownership of your profile</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-white">
-                  Verify {verifyModalPlatform === 'github' ? 'GitHub' : verifyModalPlatform === 'leetcode' ? 'LeetCode' : verifyModalPlatform === 'codeforces' ? 'Codeforces' : 'CodeChef'} Ownership
-                </h3>
-                <p className="text-[11px] text-zinc-400">Prove authentic ownership of your profile</p>
-              </div>
+              <button
+                onClick={() => setVerifyModalPlatform(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Special 1-Click OAuth for GitHub */}
-            {verifyModalPlatform === 'github' ? (
-              <div className="mt-4 space-y-4">
-                <div className="p-4 rounded-xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-black border border-zinc-700/80 shadow-lg">
-                  <div className="flex items-center gap-1.5 mb-1.5">
+            {/* Scrollable Content Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+              {/* GitHub Tab Switcher */}
+              {verifyModalPlatform === 'github' && (
+                <div className="flex rounded-lg bg-zinc-900 p-1 border border-zinc-800 text-xs">
+                  <button
+                    onClick={() => {
+                      setGithubTab('oauth');
+                      setVerifyError(null);
+                    }}
+                    className={`flex-1 py-1.5 rounded-md font-semibold text-center transition-all ${
+                      githubTab === 'oauth'
+                        ? 'bg-zinc-800 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    1-Click OAuth
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGithubTab('bio');
+                      setVerifyError(null);
+                    }}
+                    className={`flex-1 py-1.5 rounded-md font-semibold text-center transition-all ${
+                      githubTab === 'bio'
+                        ? 'bg-zinc-800 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Bio Challenge Code
+                  </button>
+                </div>
+              )}
+
+              {/* GitHub OAuth Tab Content */}
+              {verifyModalPlatform === 'github' && githubTab === 'oauth' && (
+                <div className="p-4 rounded-xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-black border border-zinc-800 shadow-lg space-y-3">
+                  <div className="flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-emerald-400" />
                     <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                      Recommended: 1-Click Login Redirect
+                      Instant Verification
                     </h4>
                   </div>
-                  <p className="text-xs text-zinc-300 mb-3 leading-relaxed">
+                  <p className="text-xs text-zinc-300 leading-relaxed">
                     Authorize CODAK directly with your GitHub account. No copying codes or editing bios required.
                   </p>
                   <button
@@ -785,70 +810,72 @@ export function ExternalCodingProfilesSection({
                     <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" />
                   </button>
                 </div>
+              )}
 
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-zinc-800"></div>
-                  <span className="flex-shrink mx-3 text-[10px] uppercase font-mono text-zinc-500">Or Manual Bio Challenge</span>
-                  <div className="flex-grow border-t border-zinc-800"></div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-relaxed">
-                <strong>Third-Party Login Note:</strong> {verifyModalPlatform === 'leetcode' ? 'LeetCode' : verifyModalPlatform === 'codeforces' ? 'Codeforces' : 'CodeChef'} does not provide an external OAuth service. Use the 30-second Bio Challenge below to prove ownership.
-              </div>
-            )}
-
-            <div className="mt-3 p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 text-xs space-y-2.5">
-              <p className="text-zinc-300 leading-relaxed">
-                Add this unique challenge code to your public{' '}
-                <strong className="text-white capitalize">{verifyModalPlatform}</strong>{' '}
-                {verifyModalPlatform === 'github' ? 'Bio or create a public Gist' : verifyModalPlatform === 'leetcode' ? 'About Me / Summary' : verifyModalPlatform === 'codeforces' ? 'Organization or City' : 'Bio'}:
-              </p>
-
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-black border border-zinc-800">
-                <code className="text-xs font-mono font-bold text-emerald-400 tracking-wider">
-                  {verificationToken}
-                </code>
-                <button
-                  onClick={handleCopyToken}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px] font-medium text-white transition-all active:scale-95"
-                >
-                  {copiedToken ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-400">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3 text-zinc-400" />
-                      <span>Copy Code</span>
-                    </>
+              {/* Bio Challenge Content */}
+              {(verifyModalPlatform !== 'github' || githubTab === 'bio') && (
+                <div className="space-y-3">
+                  {verifyModalPlatform !== 'github' && (
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-relaxed">
+                      <strong>Note:</strong> {verifyModalPlatform === 'leetcode' ? 'LeetCode' : verifyModalPlatform === 'codeforces' ? 'Codeforces' : 'CodeChef'} does not provide third-party OAuth logins. Use the quick Bio Challenge below.
+                    </div>
                   )}
-                </button>
-              </div>
 
-              <div className="text-[11px] text-zinc-500 flex items-center justify-between pt-1">
-                <span>1. Copy code</span>
-                <span>2. Paste into Bio</span>
-                <span>3. Click Verify below</span>
-              </div>
+                  <div className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 text-xs space-y-2.5">
+                    <p className="text-zinc-300 leading-relaxed">
+                      Add this unique challenge code to your public{' '}
+                      <strong className="text-white capitalize">{verifyModalPlatform}</strong>{' '}
+                      {verifyModalPlatform === 'github' ? 'Bio or create a public Gist' : verifyModalPlatform === 'leetcode' ? 'About Me / Summary' : verifyModalPlatform === 'codeforces' ? 'Organization or City' : 'Bio'}:
+                    </p>
+
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-black border border-zinc-800">
+                      <code className="text-xs font-mono font-bold text-emerald-400 tracking-wider">
+                        {verificationToken}
+                      </code>
+                      <button
+                        onClick={handleCopyToken}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px] font-medium text-white transition-all active:scale-95"
+                      >
+                        {copiedToken ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 text-zinc-400" />
+                            <span>Copy Code</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] text-zinc-500 flex items-center justify-between pt-1">
+                      <span>1. Copy code</span>
+                      <span>2. Paste into Bio</span>
+                      <span>3. Click Verify below</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {verifyError && (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{verifyError}</span>
+                </div>
+              )}
+
+              {verifySuccess && (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>{verifySuccess}</span>
+                </div>
+              )}
             </div>
 
-            {verifyError && (
-              <div className="mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{verifyError}</span>
-              </div>
-            )}
-
-            {verifySuccess && (
-              <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 shrink-0" />
-                <span>{verifySuccess}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3 mt-6 pt-3 border-t border-zinc-800">
+            {/* Sticky Actions Footer */}
+            <div className="p-4 bg-zinc-950/90 border-t border-zinc-800 flex items-center justify-between gap-3 shrink-0">
               <a
                 href={getPlatformProfileUrl(verifyModalPlatform)}
                 target="_blank"
@@ -867,14 +894,16 @@ export function ExternalCodingProfilesSection({
                 >
                   Close
                 </button>
-                <button
-                  onClick={handleExecuteVerification}
-                  disabled={isVerifying}
-                  className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {isVerifying && <RefreshCw className="w-3 h-3 animate-spin" />}
-                  <span>{isVerifying ? 'Checking...' : 'Check & Verify'}</span>
-                </button>
+                {(verifyModalPlatform !== 'github' || githubTab === 'bio') && (
+                  <button
+                    onClick={handleExecuteVerification}
+                    disabled={isVerifying}
+                    className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {isVerifying && <RefreshCw className="w-3 h-3 animate-spin" />}
+                    <span>{isVerifying ? 'Checking...' : 'Check & Verify'}</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
