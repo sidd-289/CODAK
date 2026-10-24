@@ -57,12 +57,6 @@ export function ExternalCodingProfilesSection({
     setIsModalOpen(true);
   };
 
-  const handleFillDemo = () => {
-    setLeetcodeInput('aarav_sharma');
-    setGithubInput('aarav-sharma-dev');
-    setCodeforcesInput('aarav_coder');
-    setCodechefInput('aarav_master');
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -463,7 +457,7 @@ export function ExternalCodingProfilesSection({
                     type="text"
                     value={leetcodeInput}
                     onChange={(e) => setLeetcodeInput(e.target.value)}
-                    placeholder="aarav_sharma"
+                    placeholder="your_leetcode_handle"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-32 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
                   />
                 </div>
@@ -482,7 +476,7 @@ export function ExternalCodingProfilesSection({
                     type="text"
                     value={githubInput}
                     onChange={(e) => setGithubInput(e.target.value)}
-                    placeholder="aarav-sharma-dev"
+                    placeholder="your_github_username"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-28 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
                   />
                 </div>
@@ -501,7 +495,7 @@ export function ExternalCodingProfilesSection({
                     type="text"
                     value={codeforcesInput}
                     onChange={(e) => setCodeforcesInput(e.target.value)}
-                    placeholder="aarav_coder"
+                    placeholder="your_codeforces_handle"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-44 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
                   />
                 </div>
@@ -520,39 +514,29 @@ export function ExternalCodingProfilesSection({
                     type="text"
                     value={codechefInput}
                     onChange={(e) => setCodechefInput(e.target.value)}
-                    placeholder="aarav_master"
+                    placeholder="your_codechef_handle"
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-36 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-600/50"
                   />
                 </div>
               </div>
 
-              {/* Demo button and Actions */}
-              <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
                 <button
                   type="button"
-                  onClick={handleFillDemo}
-                  className="text-xs text-sky-400 hover:text-sky-300 underline font-medium"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
                 >
-                  Fill Demo Handles
+                  Cancel
                 </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-sky-900/40 disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {saving && <RefreshCw className="w-3 h-3 animate-spin" />}
-                    <span>{saving ? 'Saving & Syncing...' : 'Save & Sync Profiles'}</span>
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-sky-900/40 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {saving && <RefreshCw className="w-3 h-3 animate-spin" />}
+                  <span>{saving ? 'Saving & Syncing...' : 'Save & Sync Profiles'}</span>
+                </button>
               </div>
             </form>
           </div>

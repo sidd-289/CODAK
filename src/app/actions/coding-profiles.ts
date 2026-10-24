@@ -10,16 +10,9 @@ import {
   fetchCodeChefData,
 } from '@/lib/external-profiles/fetchers';
 
-// Default mock handles for demo testing
-const DEFAULT_DEMO_HANDLES = {
-  leetcode: 'aarav_sharma',
-  github: 'aarav-sharma-dev',
-  codeforces: 'aarav_coder',
-  codechef: 'aarav_master',
-};
-
 /**
  * 1. Fetch student's external coding profiles and synced commits
+ * Returns clean null values if no handles are linked. Zero fake demo data.
  */
 export async function getStudentCodingProfilesAction(
   targetStudentId?: string
@@ -31,10 +24,8 @@ export async function getStudentCodingProfilesAction(
     } = await supabaseServer.auth.getUser();
 
     let studentId = targetStudentId || user?.id;
-
     const adminClient = createAdminClient();
 
-    // If still no studentId, fallback to first student for demo
     if (!studentId) {
       const { data: demoStudent } = await adminClient
         .from('students')
@@ -63,7 +54,7 @@ export async function getStudentCodingProfilesAction(
     }
 
     if (!row) {
-      // Return a default profile with sample handles
+      // Clean default profile with null handles
       return {
         success: true,
         profile: {
@@ -77,6 +68,7 @@ export async function getStudentCodingProfilesAction(
           codeforcesStats: null,
           codechefStats: null,
           recentGithubCommits: [],
+          githubCalendar: null,
           lastSyncedAt: null,
         },
       };
@@ -86,16 +78,17 @@ export async function getStudentCodingProfilesAction(
       success: true,
       profile: {
         studentId: row.student_id,
-        leetcodeHandle: row.leetcode_handle,
-        githubUsername: row.github_username,
-        codeforcesHandle: row.codeforces_handle,
-        codechefHandle: row.codechef_handle,
+        leetcodeHandle: row.leetcode_handle || null,
+        githubUsername: row.github_username || null,
+        codeforcesHandle: row.codeforces_handle || null,
+        codechefHandle: row.codechef_handle || null,
         githubStats: row.github_stats && Object.keys(row.github_stats).length > 0 ? row.github_stats : null,
         leetcodeStats: row.leetcode_stats && Object.keys(row.leetcode_stats).length > 0 ? row.leetcode_stats : null,
         codeforcesStats: row.codeforces_stats && Object.keys(row.codeforces_stats).length > 0 ? row.codeforces_stats : null,
         codechefStats: row.codechef_stats && Object.keys(row.codechef_stats).length > 0 ? row.codechef_stats : null,
         recentGithubCommits: Array.isArray(row.recent_github_commits) ? row.recent_github_commits : [],
-        lastSyncedAt: row.last_synced_at,
+        githubCalendar: row.github_calendar && row.github_calendar.days ? row.github_calendar : null,
+        lastSyncedAt: row.last_synced_at || null,
       },
     };
   } catch (err: any) {
@@ -105,7 +98,7 @@ export async function getStudentCodingProfilesAction(
 }
 
 /**
- * 2. Save/Update student handles and automatically sync live stats & commits
+ * 2. Save/Update student handles and automatically sync real live stats & commits
  */
 export async function saveStudentCodingHandlesAction(input: {
   studentId?: string;
@@ -121,7 +114,6 @@ export async function saveStudentCodingHandlesAction(input: {
     } = await supabaseServer.auth.getUser();
 
     let studentId = input.studentId || user?.id;
-
     const adminClient = createAdminClient();
 
     if (!studentId) {
@@ -145,7 +137,7 @@ export async function saveStudentCodingHandlesAction(input: {
     const cleanCodeforces = (input.codeforcesHandle || '').trim() || null;
     const cleanCodechef = (input.codechefHandle || '').trim() || null;
 
-    // Fetch stats in parallel for all non-null handles
+    // Fetch REAL data from each platform in parallel
     const [ghData, cfStats, lcStats, ccStats] = await Promise.all([
       cleanGithub ? fetchGitHubData(cleanGithub) : Promise.resolve(null),
       cleanCodeforces ? fetchCodeforcesData(cleanCodeforces) : Promise.resolve(null),
@@ -161,6 +153,7 @@ export async function saveStudentCodingHandlesAction(input: {
       codechef_handle: cleanCodechef,
       github_stats: ghData?.stats || {},
       recent_github_commits: ghData?.commits || [],
+      github_calendar: ghData?.calendar || {},
       codeforces_stats: cfStats || {},
       leetcode_stats: lcStats || {},
       codechef_stats: ccStats || {},
@@ -192,6 +185,7 @@ export async function saveStudentCodingHandlesAction(input: {
         codeforcesStats: cfStats || null,
         codechefStats: ccStats || null,
         recentGithubCommits: ghData?.commits || [],
+        githubCalendar: ghData?.calendar || null,
         lastSyncedAt: upserted.last_synced_at,
       },
     };
@@ -202,7 +196,7 @@ export async function saveStudentCodingHandlesAction(input: {
 }
 
 /**
- * 3. Sync and refresh live stats and GitHub commits for existing linked handles
+ * 3. Sync and refresh live stats, contribution calendar, and GitHub commits for existing linked handles
  */
 export async function syncStudentCodingProfilesAction(
   targetStudentId?: string
@@ -239,12 +233,32 @@ export async function syncStudentCodingProfilesAction(
       .eq('student_id', studentId)
       .maybeSingle();
 
-    const ghHandle = current?.github_username || DEFAULT_DEMO_HANDLES.github;
-    const cfHandle = current?.codeforces_handle || DEFAULT_DEMO_HANDLES.codeforces;
-    const lcHandle = current?.leetcode_handle || DEFAULT_DEMO_HANDLES.leetcode;
-    const ccHandle = current?.codechef_handle || DEFAULT_DEMO_HANDLES.codechef;
+    const ghHandle = current?.github_username || null;
+    const cfHandle = current?.codeforces_handle || null;
+    const lcHandle = current?.leetcode_handle || null;
+    const ccHandle = current?.codechef_handle || null;
 
-    // Fetch refreshed data
+    if (!ghHandle && !cfHandle && !lcHandle && !ccHandle) {
+      return {
+        success: true,
+        profile: {
+          studentId,
+          leetcodeHandle: null,
+          githubUsername: null,
+          codeforcesHandle: null,
+          codechefHandle: null,
+          githubStats: null,
+          leetcodeStats: null,
+          codeforcesStats: null,
+          codechefStats: null,
+          recentGithubCommits: [],
+          githubCalendar: null,
+          lastSyncedAt: null,
+        },
+      };
+    }
+
+    // Fetch refreshed REAL data in parallel
     const [ghData, cfStats, lcStats, ccStats] = await Promise.all([
       ghHandle ? fetchGitHubData(ghHandle) : Promise.resolve(null),
       cfHandle ? fetchCodeforcesData(cfHandle) : Promise.resolve(null),
@@ -258,11 +272,12 @@ export async function syncStudentCodingProfilesAction(
       github_username: ghHandle,
       codeforces_handle: cfHandle,
       codechef_handle: ccHandle,
-      github_stats: ghData?.stats || current?.github_stats || {},
-      recent_github_commits: ghData?.commits || current?.recent_github_commits || [],
-      codeforces_stats: cfStats || current?.codeforces_stats || {},
-      leetcode_stats: lcStats || current?.leetcode_stats || {},
-      codechef_stats: ccStats || current?.codechef_stats || {},
+      github_stats: ghData?.stats || (ghHandle ? current?.github_stats : {}) || {},
+      recent_github_commits: ghData?.commits || (ghHandle ? current?.recent_github_commits : []) || [],
+      github_calendar: ghData?.calendar || (ghHandle ? current?.github_calendar : {}) || {},
+      codeforces_stats: cfStats || (cfHandle ? current?.codeforces_stats : {}) || {},
+      leetcode_stats: lcStats || (lcHandle ? current?.leetcode_stats : {}) || {},
+      codechef_stats: ccStats || (ccHandle ? current?.codechef_stats : {}) || {},
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -291,6 +306,7 @@ export async function syncStudentCodingProfilesAction(
         codeforcesStats: updated.codeforces_stats && Object.keys(updated.codeforces_stats).length > 0 ? updated.codeforces_stats : null,
         codechefStats: updated.codechef_stats && Object.keys(updated.codechef_stats).length > 0 ? updated.codechef_stats : null,
         recentGithubCommits: Array.isArray(updated.recent_github_commits) ? updated.recent_github_commits : [],
+        githubCalendar: updated.github_calendar && updated.github_calendar.days ? updated.github_calendar : null,
         lastSyncedAt: updated.last_synced_at,
       },
     };

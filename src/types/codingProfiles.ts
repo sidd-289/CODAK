@@ -9,6 +9,17 @@ export interface GitHubCommitItem {
   authorName: string;
 }
 
+export interface GitHubContributionDay {
+  date: string; // "YYYY-MM-DD"
+  count: number;
+  level: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface GitHubContributionCalendar {
+  totalContributions: number;
+  days: GitHubContributionDay[];
+}
+
 export interface GitHubStats {
   username: string;
   name?: string;
@@ -19,6 +30,7 @@ export interface GitHubStats {
   bio?: string;
   profileUrl: string;
   recentCommitsCount: number;
+  totalContributions?: number;
 }
 
 export interface LeetCodeStats {
@@ -36,7 +48,7 @@ export interface CodeforcesStats {
   handle: string;
   rating: number;
   maxRating: number;
-  rank: string; // e.g. "specialist", "candidate master"
+  rank: string;
   maxRank: string;
   contribution: number;
   avatar?: string;
@@ -47,7 +59,7 @@ export interface CodeChefStats {
   handle: string;
   rating: number;
   highestRating: number;
-  stars: string; // e.g. "3★"
+  stars: string;
   globalRank?: number | string;
   countryRank?: number | string;
   division?: string;
@@ -65,5 +77,6 @@ export interface StudentCodingProfilesData {
   codeforcesStats: CodeforcesStats | null;
   codechefStats: CodeChefStats | null;
   recentGithubCommits: GitHubCommitItem[];
+  githubCalendar?: GitHubContributionCalendar | null;
   lastSyncedAt: string | null;
 }

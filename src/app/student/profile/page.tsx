@@ -20,6 +20,7 @@ import { RankTier } from '@/types/database';
 import { RankProgress } from '@/lib/ranks';
 import { CelebrationManager } from '@/components/animations/CelebrationManager';
 import { ExternalCodingProfilesSection } from '@/components/profile/ExternalCodingProfilesSection';
+import { GitHubContributionGraph } from '@/components/profile/GitHubContributionGraph';
 import { GitHubCommitsTable } from '@/components/profile/GitHubCommitsTable';
 import {
   getStudentCodingProfilesAction,
@@ -69,6 +70,7 @@ export default function StudentProfilePage() {
     codeforcesStats: null,
     codechefStats: null,
     recentGithubCommits: [],
+    githubCalendar: null,
     lastSyncedAt: null,
   });
   const [isSyncingCoding, setIsSyncingCoding] = useState(false);
@@ -397,6 +399,15 @@ export default function StudentProfilePage() {
             isSyncing={isSyncingCoding}
             isModalOpen={isCodingModalOpen}
             setIsModalOpen={setIsCodingModalOpen}
+          />
+
+          {/* Authentic GitHub Contribution Activity Heatmap Graph */}
+          <GitHubContributionGraph
+            calendar={codingProfiles.githubCalendar}
+            githubUsername={codingProfiles.githubUsername}
+            onRefresh={handleSyncCodingProfiles}
+            isSyncing={isSyncingCoding}
+            onOpenConnectModal={() => setIsCodingModalOpen(true)}
           />
 
           {/* GitHub Commits Telemetry Table */}
