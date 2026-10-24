@@ -19,6 +19,14 @@ import { getMyRankProgressAction, getRankTiersAction } from '@/app/actions/ranks
 import { RankTier } from '@/types/database';
 import { RankProgress } from '@/lib/ranks';
 import { CelebrationManager } from '@/components/animations/CelebrationManager';
+import { ExternalCodingProfilesSection } from '@/components/profile/ExternalCodingProfilesSection';
+import { GitHubCommitsTable } from '@/components/profile/GitHubCommitsTable';
+import {
+  getStudentCodingProfilesAction,
+  saveStudentCodingHandlesAction,
+  syncStudentCodingProfilesAction,
+} from '@/app/actions/coding-profiles';
+import { StudentCodingProfilesData } from '@/types/codingProfiles';
 
 export default function StudentProfilePage() {
   const supabase = createClient();
@@ -48,6 +56,23 @@ export default function StudentProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
+
+  // External Coding Profiles State
+  const [codingProfiles, setCodingProfiles] = useState<StudentCodingProfilesData>({
+    studentId: '',
+    leetcodeHandle: null,
+    githubUsername: null,
+    codeforcesHandle: null,
+    codechefHandle: null,
+    githubStats: null,
+    leetcodeStats: null,
+    codeforcesStats: null,
+    codechefStats: null,
+    recentGithubCommits: [],
+    lastSyncedAt: null,
+  });
+  const [isSyncingCoding, setIsSyncingCoding] = useState(false);
+  const [isCodingModalOpen, setIsCodingModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchStudentData() {
@@ -158,6 +183,16 @@ export default function StudentProfilePage() {
         } catch (e) {
           console.error('Error fetching rank progress in profile:', e);
         }
+
+        // Fetch external coding profiles
+        try {
+          const codingRes = await getStudentCodingProfilesAction(studentId);
+          if (codingRes.success && codingRes.profile) {
+            setCodingProfiles(codingRes.profile);
+          }
+        } catch (e) {
+          console.error('Error fetching coding profiles in profile:', e);
+        }
       }
 
       setLoading(false);
@@ -174,6 +209,41 @@ export default function StudentProfilePage() {
     } catch (e) {
       console.error('Failed to update anonymous preference:', e);
       setIsAnonymous(!nextVal);
+    }
+  };
+
+  const handleSaveCodingHandles = async (handles: {
+    leetcodeHandle?: string | null;
+    githubUsername?: string | null;
+    codeforcesHandle?: string | null;
+    codechefHandle?: string | null;
+  }) => {
+    try {
+      const res = await saveStudentCodingHandlesAction({
+        studentId: codingProfiles.studentId || undefined,
+        ...handles,
+      });
+      if (res.success && res.profile) {
+        setCodingProfiles(res.profile);
+        return { success: true };
+      }
+      return { success: false, error: res.error || 'Failed to save profiles' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Save failed' };
+    }
+  };
+
+  const handleSyncCodingProfiles = async () => {
+    setIsSyncingCoding(true);
+    try {
+      const res = await syncStudentCodingProfilesAction(codingProfiles.studentId || undefined);
+      if (res.success && res.profile) {
+        setCodingProfiles(res.profile);
+      }
+    } catch (e) {
+      console.error('Failed to sync coding profiles:', e);
+    } finally {
+      setIsSyncingCoding(false);
     }
   };
 
@@ -318,6 +388,25 @@ export default function StudentProfilePage() {
 
           {/* Rank Progression Section (Lifetime Rank Ladder & Max Rank Progress) */}
           <RankProgressSection progress={rankProgress} allTiers={allTiers} />
+
+          {/* External Coding Profiles Section (LeetCode, GitHub, Codeforces, CodeChef) */}
+          <ExternalCodingProfilesSection
+            data={codingProfiles}
+            onSaveHandles={handleSaveCodingHandles}
+            onSync={handleSyncCodingProfiles}
+            isSyncing={isSyncingCoding}
+            isModalOpen={isCodingModalOpen}
+            setIsModalOpen={setIsCodingModalOpen}
+          />
+
+          {/* GitHub Commits Telemetry Table */}
+          <GitHubCommitsTable
+            commits={codingProfiles.recentGithubCommits}
+            githubUsername={codingProfiles.githubUsername}
+            onRefresh={handleSyncCodingProfiles}
+            isSyncing={isSyncingCoding}
+            onOpenConnectModal={() => setIsCodingModalOpen(true)}
+          />
 
           {/* Badges Showcase (Earned and Locked Badges Grouped by Rank & Milestones) */}
           <section

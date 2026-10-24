@@ -101,11 +101,17 @@ async function seed() {
   for (const userConfig of DEMO_USERS) {
     console.log(`Processing [${userConfig.role.toUpperCase()}]: ${userConfig.email}...`);
 
-    // Check if user already exists in auth.users
-    const { data: userList } = await supabase.auth.admin.listUsers();
+    // Check if user already exists in auth.users or profiles
+    const { data: profileCheck } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', userConfig.email)
+      .maybeSingle();
+
+    const { data: userList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const existing = userList?.users.find((u) => u.email === userConfig.email);
 
-    let userId = existing?.id;
+    let userId = existing?.id || profileCheck?.id;
 
     if (!existing) {
       const { data, error } = await supabase.auth.admin.createUser({
@@ -156,7 +162,101 @@ async function seed() {
         department: userConfig.metadata.department || 'Computer Science',
         year_of_study: 1,
       });
-      console.log(`  ✅ Student academic record verified.`);
+
+      // Seed verified external coding profiles (LeetCode, GitHub, Codeforces, CodeChef)
+      await supabase.from('student_coding_profiles').upsert(
+        {
+          student_id: userId,
+          leetcode_handle: 'aarav_sharma',
+          github_username: 'aarav-sharma-dev',
+          codeforces_handle: 'aarav_coder',
+          codechef_handle: 'aarav_master',
+          github_stats: {
+            username: 'aarav-sharma-dev',
+            name: 'Aarav Sharma',
+            publicRepos: 14,
+            followers: 32,
+            following: 18,
+            bio: 'CS Student & Algorithmic Developer building on CODAK',
+            profileUrl: 'https://github.com/aarav-sharma-dev',
+            recentCommitsCount: 4,
+          },
+          leetcode_stats: {
+            username: 'aarav_sharma',
+            ranking: 132450,
+            totalSolved: 184,
+            easySolved: 98,
+            mediumSolved: 72,
+            hardSolved: 14,
+            reputation: 24,
+            profileUrl: 'https://leetcode.com/u/aarav_sharma',
+          },
+          codeforces_stats: {
+            handle: 'aarav_coder',
+            rating: 1542,
+            maxRating: 1610,
+            rank: 'specialist',
+            maxRank: 'specialist',
+            contribution: 8,
+            profileUrl: 'https://codeforces.com/profile/aarav_coder',
+          },
+          codechef_stats: {
+            handle: 'aarav_master',
+            rating: 1720,
+            highestRating: 1785,
+            stars: '3★',
+            globalRank: 14210,
+            countryRank: 3240,
+            division: 'Div 2',
+            profileUrl: 'https://www.codechef.com/users/aarav_master',
+          },
+          recent_github_commits: [
+            {
+              id: '82a15a3c9e17b8f2a14e9102c48d0a91e1273891',
+              shortSha: '82a15a3',
+              message: 'feat(codak): implement external coding profiles & github commits integration',
+              repoName: 'aarav-sharma-dev/codak-gamify',
+              repoUrl: 'https://github.com/aarav-sharma-dev/codak-gamify',
+              commitUrl: 'https://github.com/aarav-sharma-dev/codak-gamify/commit/82a15a3',
+              committedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+              authorName: 'Aarav Sharma',
+            },
+            {
+              id: '641c56af80d21e8471b0928cd91823901b092812',
+              shortSha: '641c56a',
+              message: 'fix(dsa): optimize binary search & AVL tree balance factor',
+              repoName: 'aarav-sharma-dev/algorithms-core',
+              repoUrl: 'https://github.com/aarav-sharma-dev/algorithms-core',
+              commitUrl: 'https://github.com/aarav-sharma-dev/algorithms-core/commit/641c56a',
+              committedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+              authorName: 'Aarav Sharma',
+            },
+            {
+              id: '5dda05d9c10928374a1092817290192837128930',
+              shortSha: '5dda05d',
+              message: 'chore: setup vitest test suite for graph traversal algorithms',
+              repoName: 'aarav-sharma-dev/college-labs',
+              repoUrl: 'https://github.com/aarav-sharma-dev/college-labs',
+              commitUrl: 'https://github.com/aarav-sharma-dev/college-labs/commit/5dda05d',
+              committedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+              authorName: 'Aarav Sharma',
+            },
+            {
+              id: 'f836ba8749894287e720a777474a09c305d58f24',
+              shortSha: 'f836ba8',
+              message: 'refactor: decouple code editor state from sandboxed web worker execution',
+              repoName: 'aarav-sharma-dev/codak-gamify',
+              repoUrl: 'https://github.com/aarav-sharma-dev/codak-gamify',
+              commitUrl: 'https://github.com/aarav-sharma-dev/codak-gamify/commit/f836ba8',
+              committedAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+              authorName: 'Aarav Sharma',
+            },
+          ],
+          last_synced_at: new Date().toISOString(),
+        },
+        { onConflict: 'student_id' }
+      );
+      console.log(`  ✅ Student academic & coding profiles record verified.`);
     } else if (userConfig.role === 'faculty') {
       await supabase.from('faculty').upsert({
         id: userId,

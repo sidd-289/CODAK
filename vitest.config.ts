@@ -7,6 +7,8 @@ export default defineConfig({
     testTimeout: 120000,
     hookTimeout: 120000,
     fileParallelism: false,
+    include: ['tests/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/.worktrees/**', '**/.next/**'],
   },
   resolve: {
     alias: {
