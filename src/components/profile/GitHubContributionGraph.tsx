@@ -1,13 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
-import { GitHubContributionCalendar, GitHubContributionDay } from '@/types/codingProfiles';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  GitHubContributionCalendar,
+  GitHubContributionDay,
+  GitHubCommitItem,
+} from '@/types/codingProfiles';
 import { GitCommit, ExternalLink, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
 import { cleanHandle } from '@/lib/external-profiles/fetchers';
 
 interface GitHubContributionGraphProps {
   calendar?: GitHubContributionCalendar | null;
   githubUsername?: string | null;
+  commits?: GitHubCommitItem[];
   onRefresh?: () => Promise<void>;
   isSyncing?: boolean;
   onOpenConnectModal?: () => void;
@@ -16,16 +22,28 @@ interface GitHubContributionGraphProps {
 export function GitHubContributionGraph({
   calendar,
   githubUsername,
+  commits = [],
   onRefresh,
   isSyncing = false,
   onOpenConnectModal,
 }: GitHubContributionGraphProps) {
+  const [mounted, setMounted] = useState(false);
   const [hoveredDay, setHoveredDay] = useState<{
     date: string;
     count: number;
+    commits: GitHubCommitItem[];
     x: number;
     y: number;
   } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<{
+    date: string;
+    count: number;
+    commits: GitHubCommitItem[];
+  } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const cleanUser = cleanHandle(githubUsername);
   const days = calendar?.days || [];
@@ -147,19 +165,6 @@ export function GitHubContributionGraph({
       {/* Main Contribution Graph Container */}
       {cleanUser && days.length > 0 ? (
         <div className="rounded-xl border border-zinc-800 bg-[#0d1117] p-4 sm:p-5 overflow-x-auto relative shadow-inner">
-          {/* Tooltip */}
-          {hoveredDay && (
-            <div
-              className="pointer-events-none fixed z-50 px-2.5 py-1.5 rounded-md bg-zinc-900 text-white text-[11px] font-mono border border-zinc-700 shadow-xl whitespace-nowrap -translate-x-1/2 -translate-y-full -mt-2 transition-all"
-              style={{ left: hoveredDay.x, top: hoveredDay.y }}
-            >
-              <div className="font-semibold text-emerald-400">
-                {hoveredDay.count === 0 ? 'No contributions' : `${hoveredDay.count} contribution${hoveredDay.count > 1 ? 's' : ''}`}
-              </div>
-              <div className="text-[10px] text-zinc-400">{formatDayTooltip(hoveredDay.date)}</div>
-            </div>
-          )}
-
           <div className="min-w-[720px] flex flex-col">
             {/* Months Header Row */}
             <div className="flex text-[10px] text-zinc-400 font-mono mb-2 pl-8 relative h-4">
@@ -191,28 +196,112 @@ export function GitHubContributionGraph({
               <div className="flex gap-[3px]">
                 {weeks.map((week, wIdx) => (
                   <div key={wIdx} className="flex flex-col gap-[3px]">
-                    {week.map((day) => (
-                      <div
-                        key={day.date}
-                        onMouseEnter={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredDay({
-                            date: day.date,
-                            count: day.count,
-                            x: rect.left + rect.width / 2,
-                            y: rect.top,
-                          });
-                        }}
-                        onMouseLeave={() => setHoveredDay(null)}
-                        className={`w-[11px] h-[11px] sm:w-[12px] sm:h-[12px] rounded-[2px] transition-transform duration-100 hover:scale-125 cursor-pointer ${getCellColor(
-                          day.level
-                        )}`}
-                      />
-                    ))}
+                    {week.map((day) => {
+                      const isSelected = selectedDay?.date === day.date;
+                      return (
+                        <div
+                          key={day.date}
+                          onClick={() => {
+                            const dayCommits = (commits || []).filter((c) => {
+                              if (!c.committedAt) return false;
+                              try {
+                                const d = new Date(c.committedAt).toISOString().slice(0, 10);
+                                return d === day.date || c.committedAt.startsWith(day.date);
+                              } catch {
+                                return c.committedAt.startsWith(day.date);
+                              }
+                            });
+                            setSelectedDay(
+                              isSelected
+                                ? null
+                                : { date: day.date, count: day.count, commits: dayCommits }
+                            );
+                          }}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const dayCommits = (commits || []).filter((c) => {
+                              if (!c.committedAt) return false;
+                              try {
+                                const d = new Date(c.committedAt).toISOString().slice(0, 10);
+                                return d === day.date || c.committedAt.startsWith(day.date);
+                              } catch {
+                                return c.committedAt.startsWith(day.date);
+                              }
+                            });
+                            setHoveredDay({
+                              date: day.date,
+                              count: day.count,
+                              commits: dayCommits,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top,
+                            });
+                          }}
+                          onMouseLeave={() => setHoveredDay(null)}
+                          className={`w-[11px] h-[11px] sm:w-[12px] sm:h-[12px] rounded-[2px] transition-transform duration-100 hover:scale-125 cursor-pointer ${
+                            isSelected ? 'ring-2 ring-white scale-125 z-10' : ''
+                          } ${getCellColor(day.level)}`}
+                        />
+                      );
+                    })}
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* Selected Day Commits Breakdown */}
+            {selectedDay && (
+              <div className="mt-3 p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs animate-in fade-in duration-150">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white font-mono">
+                      {formatDayTooltip(selectedDay.date)}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
+                      {selectedDay.count} contribution{selectedDay.count > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedDay(null)}
+                    className="text-zinc-500 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+                {selectedDay.commits.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {selectedDay.commits.map((c) => (
+                      <div
+                        key={c.id || c.shortSha}
+                        className="flex items-center justify-between text-xs p-2 rounded-lg bg-black/50 border border-zinc-800/80"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <GitCommit className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="font-mono text-[10px] text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded shrink-0">
+                            {c.repoName.split('/')[1] || c.repoName}
+                          </span>
+                          <span className="text-zinc-200 truncate">{c.message}</span>
+                        </div>
+                        <a
+                          href={c.commitUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 ml-2 shrink-0"
+                        >
+                          {c.shortSha}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-400">
+                    {selectedDay.count > 0
+                      ? `${selectedDay.count} contributions on this day were synced to GitHub.`
+                      : 'No commit activity recorded on this day.'}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Bottom Footer: Learn link & Legend */}
             <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-4 mt-2 border-t border-zinc-800/60">
@@ -285,6 +374,67 @@ export function GitHubContributionGraph({
             Connect GitHub
           </button>
         </div>
+      )}
+
+      {/* Floating Tooltip mounted to document.body via Portal */}
+      {mounted && hoveredDay && createPortal(
+        <div
+          className="pointer-events-none fixed z-[99999] px-3.5 py-2.5 rounded-xl bg-zinc-950/95 text-white border border-zinc-700 shadow-2xl backdrop-blur-md -translate-x-1/2 -translate-y-full -mt-2.5 transition-all animate-in fade-in zoom-in-95 duration-100 min-w-[220px] max-w-[340px]"
+          style={{
+            left: Math.max(170, Math.min(window.innerWidth - 170, hoveredDay.x)),
+            top: hoveredDay.y,
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-zinc-800/80">
+            <span className="font-bold text-xs text-emerald-400 font-mono">
+              {hoveredDay.count === 0
+                ? 'No contributions'
+                : `${hoveredDay.count} contribution${hoveredDay.count > 1 ? 's' : ''}`}
+            </span>
+            <span className="text-[10px] text-zinc-400 font-medium">
+              {formatDayTooltip(hoveredDay.date)}
+            </span>
+          </div>
+
+          {hoveredDay.commits.length > 0 ? (
+            <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
+              <div className="text-[9px] uppercase font-mono tracking-wider text-zinc-500">
+                Commits on this day ({hoveredDay.commits.length})
+              </div>
+              {hoveredDay.commits.map((c) => (
+                <div key={c.id || c.shortSha} className="flex items-start gap-1.5 text-zinc-300">
+                  <GitCommit className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-medium text-zinc-200 truncate leading-snug" title={c.message}>
+                      {c.message}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[9px] font-mono text-zinc-500 mt-0.5">
+                      <span className="text-sky-400 bg-sky-500/10 px-1 py-0.2 rounded">
+                        {c.repoName.split('/')[1] || c.repoName}
+                      </span>
+                      <span>{c.shortSha}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {hoveredDay.count > hoveredDay.commits.length && (
+                <div className="text-[9px] text-zinc-500 italic pt-0.5">
+                  + {hoveredDay.count - hoveredDay.commits.length} other contribution{hoveredDay.count - hoveredDay.commits.length > 1 ? 's' : ''} (PRs, issues, or reviews)
+                </div>
+              )}
+            </div>
+          ) : hoveredDay.count > 0 ? (
+            <div className="mt-2 text-[10px] text-zinc-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>{hoveredDay.count} contribution{hoveredDay.count > 1 ? 's' : ''} pushed to GitHub</span>
+            </div>
+          ) : (
+            <div className="mt-1.5 text-[10px] text-zinc-500">
+              No commit activity recorded on this day
+            </div>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   );

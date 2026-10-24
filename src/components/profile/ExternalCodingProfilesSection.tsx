@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { StudentCodingProfilesData } from '@/types/codingProfiles';
 import {
   ExternalLink,
@@ -44,6 +45,11 @@ export function ExternalCodingProfilesSection({
   setIsModalOpen,
 }: ExternalCodingProfilesSectionProps) {
   const supabase = createClient();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Modal state
   const [leetcodeInput, setLeetcodeInput] = useState(data.leetcodeHandle || '');
@@ -589,12 +595,12 @@ export function ExternalCodingProfilesSection({
         </div>
       </div>
 
-      {/* Edit Handles Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg max-h-[88vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+      {/* Edit Handles Modal (Mounted via Portal directly to body) */}
+      {mounted && isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md flex min-h-screen items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg max-h-[85vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden my-auto">
             {/* Header */}
-            <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
+            <div className="p-4 sm:p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base font-bold text-white">Link Coding Profiles</h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
@@ -628,76 +634,92 @@ export function ExternalCodingProfilesSection({
               <form id="link-handles-form" onSubmit={handleSave} className="space-y-4">
                 {/* LeetCode */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    LeetCode Username
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400" />
+                      LeetCode
+                    </label>
+                    <span className="text-[10px] text-zinc-500">Handle or profile URL</span>
+                  </div>
+                  <div className="flex items-center rounded-xl bg-zinc-900/90 border border-zinc-800 focus-within:border-amber-500/60 focus-within:ring-1 focus-within:ring-amber-500/20 overflow-hidden transition-all shadow-inner">
+                    <span className="px-3 py-2.5 bg-zinc-950/70 text-[11px] font-mono text-zinc-400 border-r border-zinc-800/80 select-none shrink-0">
                       leetcode.com/u/
                     </span>
                     <input
                       type="text"
                       value={leetcodeInput}
                       onChange={(e) => setLeetcodeInput(cleanHandle(e.target.value) || e.target.value)}
-                      placeholder="your_leetcode_handle"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-32 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                      placeholder="username"
+                      className="w-full bg-transparent px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none font-mono"
                     />
                   </div>
                 </div>
 
                 {/* GitHub */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    GitHub Username
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-sky-400" />
+                      GitHub
+                    </label>
+                    <span className="text-[10px] text-zinc-500">Username or profile URL</span>
+                  </div>
+                  <div className="flex items-center rounded-xl bg-zinc-900/90 border border-zinc-800 focus-within:border-sky-500/60 focus-within:ring-1 focus-within:ring-sky-500/20 overflow-hidden transition-all shadow-inner">
+                    <span className="px-3 py-2.5 bg-zinc-950/70 text-[11px] font-mono text-zinc-400 border-r border-zinc-800/80 select-none shrink-0">
                       github.com/
                     </span>
                     <input
                       type="text"
                       value={githubInput}
                       onChange={(e) => setGithubInput(cleanHandle(e.target.value) || e.target.value)}
-                      placeholder="your_github_username"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-28 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
+                      placeholder="username"
+                      className="w-full bg-transparent px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none font-mono"
                     />
                   </div>
                 </div>
 
                 {/* Codeforces */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Codeforces Handle
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                      Codeforces
+                    </label>
+                    <span className="text-[10px] text-zinc-500">Handle or profile URL</span>
+                  </div>
+                  <div className="flex items-center rounded-xl bg-zinc-900/90 border border-zinc-800 focus-within:border-indigo-500/60 focus-within:ring-1 focus-within:ring-indigo-500/20 overflow-hidden transition-all shadow-inner">
+                    <span className="px-3 py-2.5 bg-zinc-950/70 text-[11px] font-mono text-zinc-400 border-r border-zinc-800/80 select-none shrink-0">
                       codeforces.com/profile/
                     </span>
                     <input
                       type="text"
                       value={codeforcesInput}
                       onChange={(e) => setCodeforcesInput(cleanHandle(e.target.value) || e.target.value)}
-                      placeholder="your_codeforces_handle"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-44 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
+                      placeholder="handle"
+                      className="w-full bg-transparent px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none font-mono"
                     />
                   </div>
                 </div>
 
                 {/* CodeChef */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    CodeChef Username
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-600" />
+                      CodeChef
+                    </label>
+                    <span className="text-[10px] text-zinc-500">Handle or profile URL</span>
+                  </div>
+                  <div className="flex items-center rounded-xl bg-zinc-900/90 border border-zinc-800 focus-within:border-amber-600/60 focus-within:ring-1 focus-within:ring-amber-600/20 overflow-hidden transition-all shadow-inner">
+                    <span className="px-3 py-2.5 bg-zinc-950/70 text-[11px] font-mono text-zinc-400 border-r border-zinc-800/80 select-none shrink-0">
                       codechef.com/users/
                     </span>
                     <input
                       type="text"
                       value={codechefInput}
                       onChange={(e) => setCodechefInput(cleanHandle(e.target.value) || e.target.value)}
-                      placeholder="your_codechef_handle"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-36 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-600/50"
+                      placeholder="handle"
+                      className="w-full bg-transparent px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none font-mono"
                     />
                   </div>
                 </div>
@@ -709,7 +731,7 @@ export function ExternalCodingProfilesSection({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
+                className="px-3.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium"
               >
                 Cancel
               </button>
@@ -724,13 +746,14 @@ export function ExternalCodingProfilesSection({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Account Ownership Verification Modal */}
-      {verifyModalPlatform && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md max-h-[88vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+      {/* Account Ownership Verification Modal (Mounted via Portal directly to body) */}
+      {mounted && verifyModalPlatform && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md flex min-h-screen items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md max-h-[85vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col overflow-hidden my-auto">
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-zinc-800/80 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
@@ -922,7 +945,8 @@ export function ExternalCodingProfilesSection({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

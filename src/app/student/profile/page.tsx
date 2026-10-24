@@ -423,6 +423,7 @@ export default function StudentProfilePage() {
           <GitHubContributionGraph
             calendar={codingProfiles.githubCalendar}
             githubUsername={codingProfiles.githubUsername}
+            commits={codingProfiles.recentGithubCommits}
             onRefresh={handleSyncCodingProfiles}
             isSyncing={isSyncingCoding}
             onOpenConnectModal={() => setIsCodingModalOpen(true)}
