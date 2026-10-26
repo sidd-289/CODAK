@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GitHubCommitItem } from '@/types/codingProfiles';
 import { GitCommit, GitBranch, ExternalLink, Search, RefreshCw, FolderGit2, CheckCircle2 } from 'lucide-react';
 
@@ -21,6 +21,11 @@ export function GitHubCommitsTable({
 }: GitHubCommitsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRepo, setFilterRepo] = useState<string>('all');
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   const filteredCommits = commits.filter((c) => {
     const matchesSearch =
@@ -37,7 +42,10 @@ export function GitHubCommitsTable({
   function formatRelativeTime(isoString: string): string {
     try {
       const date = new Date(isoString);
-      const diffMs = Date.now() - date.getTime();
+      if (!now) {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      const diffMs = Math.max(0, now - date.getTime());
       const diffMins = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

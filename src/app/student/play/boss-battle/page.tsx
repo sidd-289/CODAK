@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
 import { BottomNav } from '@/components/BottomNav';
@@ -100,28 +100,7 @@ export default function BossBattlePage() {
     syncBattle();
   }, []);
 
-  // 2. Countdown Timer
-  useEffect(() => {
-    if (loading || concluded || !session) return;
-
-    timerRef.current = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!);
-          handleTimeExpired();
-          return 0;
-        }
-        return prev - 1;
-      });
-      setTimeSpent((prev) => prev + 1);
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [loading, concluded, session]);
-
-  const handleTimeExpired = async () => {
+  const handleTimeExpired = useCallback(async () => {
     if (!session || concluded) return;
     setFinalizing(true);
     const res = await finalizeBossBattleAction(session.id);
@@ -135,7 +114,34 @@ export default function BossBattlePage() {
       setConcluded(true);
     }
     setFinalizing(false);
-  };
+  }, [session, concluded]);
+
+  // 2. Countdown Timer
+  useEffect(() => {
+    if (loading || concluded || !session) return;
+
+    timerRef.current = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+      setTimeSpent((prev) => prev + 1);
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [loading, concluded, session]);
+
+  // Handle time expiry
+  useEffect(() => {
+    if (secondsRemaining === 0 && session && !concluded && !loading) {
+      handleTimeExpired();
+    }
+  }, [secondsRemaining, session, concluded, loading, handleTimeExpired]);
 
   const handleSelectOption = async (optionIndex: number) => {
     if (submittingAnswer || feedback || !session || concluded) return;

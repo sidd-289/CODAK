@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { BottomNav } from '@/components/BottomNav';
 import { getStudentLeagueAction, StudentLeagueData } from '@/app/actions/leagues';
@@ -255,7 +255,7 @@ export default function StudentCompetePage() {
     }
   };
 
-  const handleStartDuel = async (duelId: string) => {
+  const handleStartDuel = useCallback(async (duelId: string) => {
     setDuelError(null);
     setDuelResult(null);
     setSubmittingAnswers(false);
@@ -276,7 +276,7 @@ export default function StudentCompetePage() {
     } catch (e: any) {
       setDuelError(e.message || 'Error opening duel');
     }
-  };
+  }, []);
 
   const handleSelectChoice = (questionId: string, choiceKey: string) => {
     setSelectedChoices((prev) => ({ ...prev, [questionId]: choiceKey }));
