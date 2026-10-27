@@ -3,6 +3,12 @@
 import React, { useEffect, useRef, useState, RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import './TargetCursor.css';
+import {
+  getCursorPreference,
+  CURSOR_PREFERENCE_EVENT,
+  CURSOR_PREFERENCE_KEY,
+  CursorPreference,
+} from '@/lib/cursor-preference';
 
 const CORNER_ANGLES = [0, 90, 180, 270];
 const QUARTER = Math.PI / 2;
@@ -64,6 +70,7 @@ export const TargetCursor: React.FC<TargetCursorProps> = ({
   container,
 }) => {
   const [host, setHost] = useState<HTMLElement | null>(null);
+  const [cursorPreference, setCursorPreferenceState] = useState<CursorPreference>('target');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const cornerRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const dotRef = useRef<HTMLSpanElement | null>(null);
@@ -94,9 +101,33 @@ export const TargetCursor: React.FC<TargetCursorProps> = ({
 
   useEffect(() => {
     setHost(document.body);
+    setCursorPreferenceState(getCursorPreference());
+
+    const handlePreferenceChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ preference?: CursorPreference }>;
+      const nextPref = customEvent?.detail?.preference || getCursorPreference();
+      setCursorPreferenceState(nextPref);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === CURSOR_PREFERENCE_KEY) {
+        setCursorPreferenceState(getCursorPreference());
+      }
+    };
+
+    window.addEventListener(CURSOR_PREFERENCE_EVENT, handlePreferenceChange);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(CURSOR_PREFERENCE_EVENT, handlePreferenceChange);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   useEffect(() => {
+    if (cursorPreference === 'default') {
+      return undefined;
+    }
+
     const root = rootRef.current;
     if (!host || !root) return undefined;
 
@@ -389,13 +420,13 @@ export const TargetCursor: React.FC<TargetCursorProps> = ({
       lastScope?.removeAttribute('data-target-cursor-scope');
       style.remove();
     };
-  }, [host]);
+  }, [host, cursorPreference]);
 
   useEffect(() => {
     wakeRef.current?.();
   });
 
-  if (!host) return null;
+  if (!host || cursorPreference === 'default') return null;
 
   return createPortal(
     <div

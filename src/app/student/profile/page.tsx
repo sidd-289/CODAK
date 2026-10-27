@@ -6,13 +6,19 @@ import { BottomNav } from '@/components/BottomNav';
 import { createClient } from '@/lib/supabase/client';
 import { levelFromXp, LevelProgress } from '@/lib/levels';
 import { XpEvent } from '@/types/database';
-import { ShieldCheck, EyeOff, Award, Sparkles, TrendingUp, History, Clock, LogOut, Edit3, X, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, EyeOff, Award, Sparkles, TrendingUp, History, Clock, LogOut, Edit3, X, CheckCircle2, MousePointer, Crosshair } from 'lucide-react';
 import Aurora from '@/components/Aurora';
 import { BadgeTile } from '@/components/ui/game-elements';
 import { getStudentBadgesAction, StudentBadgeDisplay } from '@/app/actions/badges';
 import { updateAnonymousPreferenceAction } from '@/app/actions/leaderboard';
 import { updateStudentProfileAction } from '@/app/actions/student-dashboard';
 import { formatCampusDisplayName } from '@/lib/campus';
+import {
+  getCursorPreference,
+  setCursorPreference,
+  CURSOR_PREFERENCE_EVENT,
+  CursorPreference,
+} from '@/lib/cursor-preference';
 import { RankChip } from '@/components/ranks/RankChip';
 import { RankProgressSection } from '@/components/ranks/RankProgressSection';
 import { getMyRankProgressAction, getRankTiersAction } from '@/app/actions/ranks';
@@ -48,6 +54,7 @@ export default function StudentProfilePage() {
   const [badges, setBadges] = useState<StudentBadgeDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [cursorPreference, setCursorPreferenceState] = useState<CursorPreference>('target');
 
   // Edit Profile Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -203,6 +210,27 @@ export default function StudentProfilePage() {
 
     fetchStudentData();
   }, []);
+
+  // Hydrate and synchronize cursor preference with localStorage and broadcast events
+  useEffect(() => {
+    setCursorPreferenceState(getCursorPreference());
+
+    const handlePreferenceChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ preference?: CursorPreference }>;
+      const nextPref = customEvent?.detail?.preference || getCursorPreference();
+      setCursorPreferenceState(nextPref);
+    };
+
+    window.addEventListener(CURSOR_PREFERENCE_EVENT, handlePreferenceChange);
+    return () => {
+      window.removeEventListener(CURSOR_PREFERENCE_EVENT, handlePreferenceChange);
+    };
+  }, []);
+
+  const handleToggleCursor = (newPref: CursorPreference) => {
+    setCursorPreference(newPref);
+    setCursorPreferenceState(newPref);
+  };
 
   const handleToggleAnonymous = async () => {
     const nextVal = !isAnonymous;
@@ -384,7 +412,30 @@ export default function StudentProfilePage() {
               </div>
 
               {/* Quick Actions */}
-              <div className="shrink-0 flex items-center gap-2.5 self-center md:self-start">
+              <div className="shrink-0 flex flex-wrap items-center gap-2.5 self-center md:self-start">
+                <button
+                  type="button"
+                  id="top-cursor-toggle-btn"
+                  onClick={() => handleToggleCursor(cursorPreference === 'default' ? 'target' : 'default')}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-[0.98] shadow-sm border ${
+                    cursorPreference === 'default'
+                      ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-700 hover:border-zinc-500'
+                      : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                  }`}
+                  title={cursorPreference === 'default' ? 'Switch back to Target Cursor HUD' : 'Turn cursor back to default system cursor'}
+                >
+                  {cursorPreference === 'default' ? (
+                    <>
+                      <MousePointer className="w-3.5 h-3.5 text-zinc-300" />
+                      <span>Default Cursor</span>
+                    </>
+                  ) : (
+                    <>
+                      <MousePointer className="w-3.5 h-3.5 text-white" />
+                      <span>Default Cursor</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={handleOpenEditModal}
@@ -605,8 +656,101 @@ export default function StudentProfilePage() {
             )}
           </section>
 
-          {/* Privacy & Session Settings (2-Column Grid on Wide Screens) */}
+          {/* Privacy, Preferences & Session Settings (2-Column Grid on Wide Screens) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Cursor Style Settings (Turn back to default or gaming HUD) */}
+            <section
+              aria-label="Cursor style settings"
+              className="p-6 rounded-3xl bg-zinc-900/60 border border-zinc-800 flex flex-col justify-between gap-4 shadow-xl"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-white shrink-0">
+                    {cursorPreference === 'default' ? (
+                      <MousePointer className="w-5 h-5 text-zinc-300" />
+                    ) : (
+                      <Crosshair className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-bold text-white">Cursor Style</h2>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                          cursorPreference === 'default'
+                            ? 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                            : 'bg-white/10 text-white border-white/20'
+                        }`}
+                      >
+                        {cursorPreference === 'default' ? 'Default OS' : 'Target HUD'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Toggle custom gaming target HUD or native system cursor
+                    </p>
+                  </div>
+                </div>
+
+                {/* Switch toggle */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleCursor(cursorPreference === 'default' ? 'target' : 'default')}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${
+                    cursorPreference === 'default' ? 'bg-zinc-800' : 'bg-white'
+                  }`}
+                  aria-label="Toggle custom cursor"
+                  title={cursorPreference === 'default' ? 'Switch to custom target cursor' : 'Turn cursor back to default'}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full transition-transform ${
+                      cursorPreference === 'default' ? 'bg-zinc-400 translate-x-0' : 'bg-black translate-x-6'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Segmented Option Buttons */}
+              <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-black/60 border border-zinc-800">
+                <button
+                  type="button"
+                  id="cursor-option-default"
+                  onClick={() => handleToggleCursor('default')}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-target ${
+                    cursorPreference === 'default'
+                      ? 'bg-white text-black shadow-md font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  data-cursor-label="Default Cursor"
+                >
+                  <MousePointer className="w-3.5 h-3.5" />
+                  <span>Default Cursor</span>
+                </button>
+                <button
+                  type="button"
+                  id="cursor-option-target"
+                  onClick={() => handleToggleCursor('target')}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-target ${
+                    cursorPreference === 'target'
+                      ? 'bg-white text-black shadow-md font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  data-cursor-label="Target HUD"
+                >
+                  <Crosshair className="w-3.5 h-3.5" />
+                  <span>Target HUD</span>
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-black/60 border border-zinc-800 text-xs text-zinc-400 leading-relaxed">
+                <strong className="text-zinc-200 block mb-0.5">
+                  {cursorPreference === 'default' ? 'Native OS Cursor Active:' : 'Custom Target Reticle Active:'}
+                </strong>
+                {cursorPreference === 'default'
+                  ? 'Your standard operating system mouse pointer is currently active across the platform.'
+                  : 'The cyberpunk target cursor HUD is active with corner tracking and magnetic snapping.'}
+              </div>
+            </section>
+
             {/* Server-Enforced Anonymous Mode Toggle */}
             <section
               aria-label="Anonymous mode toggle"
@@ -647,27 +791,21 @@ export default function StudentProfilePage() {
             {/* Account Session & Log out */}
             <section
               aria-label="Account session actions"
-              className="p-6 rounded-3xl bg-zinc-900/60 border border-zinc-800 flex flex-col justify-between gap-4 shadow-xl"
+              className="p-6 rounded-3xl bg-zinc-900/60 border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl md:col-span-2"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold text-white">Active Session</h2>
-                  <p className="text-xs text-zinc-400">Signed in as {studentName}</p>
-                </div>
-
-                <a
-                  href="/api/auth/signout"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 transition-all active:scale-95 cursor-target"
-                  data-cursor-label="Sign out"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign out</span>
-                </a>
+              <div>
+                <h2 className="text-sm font-bold text-white">Active Session</h2>
+                <p className="text-xs text-zinc-400">Signed in as {studentName} • Authenticated on this device</p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-black/60 border border-zinc-800 text-xs text-zinc-400 leading-relaxed font-mono">
-                Security status: Authenticated • Session active on this device.
-              </div>
+              <a
+                href="/api/auth/signout"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 transition-all active:scale-95 cursor-target"
+                data-cursor-label="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign out</span>
+              </a>
             </section>
           </div>
 
