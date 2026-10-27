@@ -3,12 +3,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Camera, Trash2, ExternalLink, RotateCw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Camera, Trash2, ExternalLink, RotateCw, AlertTriangle, ShieldCheck, MousePointer, Crosshair } from 'lucide-react';
 import { StudentProfile } from '@/data/studentDashboardData';
 import Shuffle from '@/components/Shuffle';
 import { RankChip } from '@/components/ranks/RankChip';
 import FlipCard from '@/components/FlipCard';
 import { createClient } from '@/lib/supabase/client';
+import {
+  getCursorPreference,
+  setCursorPreference,
+  CURSOR_PREFERENCE_EVENT,
+  CursorPreference,
+} from '@/lib/cursor-preference';
 
 interface ProfileCardProps {
   profile: StudentProfile;
@@ -22,6 +28,7 @@ export function ProfileCard({ profile, onUpdateAvatar }: ProfileCardProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [cursorPreference, setCursorPreferenceState] = useState<CursorPreference>('target');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Hydrate avatar from localStorage on client mount
@@ -36,6 +43,27 @@ export function ProfileCard({ profile, onUpdateAvatar }: ProfileCardProps) {
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+
+  // Hydrate and sync cursor preference
+  useEffect(() => {
+    setCursorPreferenceState(getCursorPreference());
+
+    const handlePreferenceChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ preference?: CursorPreference }>;
+      const nextPref = customEvent?.detail?.preference || getCursorPreference();
+      setCursorPreferenceState(nextPref);
+    };
+
+    window.addEventListener(CURSOR_PREFERENCE_EVENT, handlePreferenceChange);
+    return () => {
+      window.removeEventListener(CURSOR_PREFERENCE_EVENT, handlePreferenceChange);
+    };
+  }, []);
+
+  const handleToggleCursor = (newPref: CursorPreference) => {
+    setCursorPreference(newPref);
+    setCursorPreferenceState(newPref);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrorMsg(null);
@@ -291,6 +319,52 @@ export function ProfileCard({ profile, onUpdateAvatar }: ProfileCardProps) {
         <div className="flex justify-between items-center text-zinc-400 text-[11px]">
           <span>Rank Tier:</span>
           <span className="text-white font-medium">{profile.rank}</span>
+        </div>
+        <div className="pt-1.5 border-t border-white/10 flex justify-between items-center text-[11px]" data-no-flip>
+          <span className="text-zinc-400 flex items-center gap-1.5">
+            {cursorPreference === 'default' ? (
+              <MousePointer className="w-3 h-3 text-zinc-300" />
+            ) : (
+              <Crosshair className="w-3 h-3 text-zinc-300" />
+            )}
+            Cursor:
+          </span>
+          <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-lg border border-white/10" data-no-flip>
+            <button
+              type="button"
+              data-no-flip
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleCursor('default');
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all ${
+                cursorPreference === 'default'
+                  ? 'bg-white text-black font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Turn cursor back to default OS pointer"
+            >
+              Default
+            </button>
+            <button
+              type="button"
+              data-no-flip
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleCursor('target');
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all ${
+                cursorPreference === 'target'
+                  ? 'bg-white text-black font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Use custom target cursor HUD"
+            >
+              Target
+            </button>
+          </div>
         </div>
       </div>
 
