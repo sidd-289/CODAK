@@ -412,30 +412,7 @@ export default function StudentProfilePage() {
               </div>
 
               {/* Quick Actions */}
-              <div className="shrink-0 flex flex-wrap items-center gap-2.5 self-center md:self-start">
-                <button
-                  type="button"
-                  id="top-cursor-toggle-btn"
-                  onClick={() => handleToggleCursor(cursorPreference === 'default' ? 'target' : 'default')}
-                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-[0.98] shadow-sm border ${
-                    cursorPreference === 'default'
-                      ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-700 hover:border-zinc-500'
-                      : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-                  }`}
-                  title={cursorPreference === 'default' ? 'Switch back to Target Cursor HUD' : 'Turn cursor back to default system cursor'}
-                >
-                  {cursorPreference === 'default' ? (
-                    <>
-                      <MousePointer className="w-3.5 h-3.5 text-zinc-300" />
-                      <span>Default Cursor</span>
-                    </>
-                  ) : (
-                    <>
-                      <MousePointer className="w-3.5 h-3.5 text-white" />
-                      <span>Default Cursor</span>
-                    </>
-                  )}
-                </button>
+              <div className="shrink-0 flex items-center gap-2.5 self-center md:self-start">
                 <button
                   type="button"
                   onClick={handleOpenEditModal}
@@ -452,6 +429,69 @@ export default function StudentProfilePage() {
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Log out</span>
                 </a>
+              </div>
+            </div>
+
+            {/* Separate Space Below Student Details: Cursor Mode Toggle */}
+            <div className="mt-6 pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-black/40 border border-zinc-800/60 shadow-inner">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800/90 border border-zinc-700 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  {cursorPreference === 'default' ? (
+                    <MousePointer className="w-5 h-5 text-zinc-200" />
+                  ) : (
+                    <Crosshair className="w-5 h-5 text-white" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs font-bold text-white">Default Cursor</span>
+                    <span
+                      className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                        cursorPreference === 'default'
+                          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                          : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                      }`}
+                    >
+                      {cursorPreference === 'default' ? 'ON (Default OS)' : 'OFF (Target HUD)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    {cursorPreference === 'default'
+                      ? 'Using standard native OS mouse pointer across the platform.'
+                      : 'Switch this toggle on to turn the cursor back to the default system mouse pointer.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle Switch Button */}
+              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                <span className="text-xs font-medium text-zinc-400">
+                  {cursorPreference === 'default' ? 'Default Cursor' : 'Target Reticle'}
+                </span>
+                <button
+                  type="button"
+                  id="student-detail-cursor-toggle"
+                  onClick={() => handleToggleCursor(cursorPreference === 'default' ? 'target' : 'default')}
+                  className={`w-14 h-7 rounded-full p-1 transition-colors flex items-center cursor-pointer shadow-inner ${
+                    cursorPreference === 'default' ? 'bg-white' : 'bg-zinc-800 border border-zinc-700'
+                  }`}
+                  aria-label="Toggle default cursor mode"
+                  title={cursorPreference === 'default' ? 'Turn off default cursor (use target reticle)' : 'Turn cursor back to default'}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full transition-transform flex items-center justify-center shadow-md ${
+                      cursorPreference === 'default'
+                        ? 'bg-black translate-x-7'
+                        : 'bg-zinc-400 translate-x-0'
+                    }`}
+                  >
+                    {cursorPreference === 'default' ? (
+                      <MousePointer className="w-3 h-3 text-white" />
+                    ) : (
+                      <Crosshair className="w-3 h-3 text-zinc-900" />
+                    )}
+                  </div>
+                </button>
               </div>
             </div>
           </section>

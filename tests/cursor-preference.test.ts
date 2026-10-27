@@ -138,6 +138,7 @@ describe('Cursor Preference System & Profile Integration', () => {
       expect(content).toContain('Target HUD');
 
       // Check toggle logic
+      expect(content).toContain('student-detail-cursor-toggle');
       expect(content).toContain('handleToggleCursor');
       expect(content).toContain("handleToggleCursor('default')");
       expect(content).toContain("handleToggleCursor('target')");
