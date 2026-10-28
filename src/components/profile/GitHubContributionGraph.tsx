@@ -1,14 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   GitHubContributionCalendar,
   GitHubContributionDay,
   GitHubCommitItem,
 } from '@/types/codingProfiles';
-import { GitCommit, ExternalLink, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
+import {
+  GitCommit,
+  ExternalLink,
+  RefreshCw,
+  Sparkles,
+  Flame,
+  Trophy,
+  Calendar,
+} from 'lucide-react';
 import { cleanHandle } from '@/lib/external-profiles/fetchers';
+import {
+  calculateGitHubStreak,
+  formatStreakRange,
+} from '@/lib/external-profiles/githubStreak';
 
 interface GitHubContributionGraphProps {
   calendar?: GitHubContributionCalendar | null;
@@ -28,6 +40,7 @@ export function GitHubContributionGraph({
   onOpenConnectModal,
 }: GitHubContributionGraphProps) {
   const [mounted, setMounted] = useState(false);
+  const [streakHighlight, setStreakHighlight] = useState<'current' | 'longest' | null>(null);
   const [hoveredDay, setHoveredDay] = useState<{
     date: string;
     count: number;
@@ -48,6 +61,11 @@ export function GitHubContributionGraph({
   const cleanUser = cleanHandle(githubUsername);
   const days = calendar?.days || [];
   const totalContributions = calendar?.totalContributions ?? 0;
+
+  // Real-time calculation of Current Streak, Longest Streak, Active Days, and Consistency
+  const streakStats = useMemo(() => {
+    return calculateGitHubStreak(days, commits);
+  }, [days, commits]);
 
   // Split the ~365-371 days into columns of 7 days (Sunday = 0 to Saturday = 6)
   const weeks: GitHubContributionDay[][] = [];
@@ -112,7 +130,7 @@ export function GitHubContributionGraph({
       {/* Header matching GitHub UI */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
               {cleanUser
                 ? `${totalContributions.toLocaleString()} contributions in the last year`
@@ -122,6 +140,35 @@ export function GitHubContributionGraph({
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 @{cleanUser}
               </span>
+            )}
+            {cleanUser && days.length > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setStreakHighlight((prev) => (prev === 'current' ? null : 'current'))
+                }
+                className={`cursor-pointer inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-all ${
+                  streakStats.currentStreak > 0
+                    ? 'bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/10 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20 hover:border-amber-400'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                } ${streakHighlight === 'current' ? 'ring-2 ring-amber-400' : ''}`}
+                title={
+                  streakStats.currentStreak > 0
+                    ? `Current streak: ${streakStats.currentStreak} day${streakStats.currentStreak > 1 ? 's' : ''}. Click to highlight on graph.`
+                    : 'No active streak. Click to highlight.'
+                }
+              >
+                <Flame
+                  className={`w-3.5 h-3.5 ${
+                    streakStats.currentStreak > 0
+                      ? 'text-amber-400 fill-amber-400 animate-pulse'
+                      : 'text-zinc-500'
+                  }`}
+                />
+                <span className="font-mono">
+                  {streakStats.currentStreak}d Streak
+                </span>
+              </button>
             )}
           </div>
           <p className="text-xs text-zinc-400 mt-0.5">
@@ -162,166 +209,377 @@ export function GitHubContributionGraph({
         </div>
       </div>
 
-      {/* Main Contribution Graph Container */}
+      {/* Main Contribution Graph & Streak Counter Container */}
       {cleanUser && days.length > 0 ? (
-        <div className="rounded-xl border border-zinc-800 bg-[#0d1117] p-4 sm:p-5 overflow-x-auto relative shadow-inner">
-          <div className="min-w-[720px] flex flex-col">
-            {/* Months Header Row */}
-            <div className="flex text-[10px] text-zinc-400 font-mono mb-2 pl-8 relative h-4">
-              {monthLabels.map((m, idx) => (
-                <div
-                  key={`${m.label}-${idx}`}
-                  className="absolute"
-                  style={{ left: `calc(${m.weekIndex * 14}px + 2rem)` }}
-                >
-                  {m.label}
+        <div className="space-y-4">
+          {/* Streak Counter Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            {/* Card 1: Current Streak */}
+            <div
+              onClick={() => setStreakHighlight((prev) => (prev === 'current' ? null : 'current'))}
+              onMouseEnter={() => setStreakHighlight('current')}
+              onMouseLeave={() => setStreakHighlight(null)}
+              className={`group relative overflow-hidden rounded-xl bg-gradient-to-br from-amber-500/10 via-zinc-900/90 to-zinc-950 border p-3.5 sm:p-4 transition-all cursor-pointer ${
+                streakHighlight === 'current'
+                  ? 'border-amber-400 ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/20 scale-[1.01]'
+                  : 'border-amber-500/30 hover:border-amber-400/60 hover:shadow-md hover:shadow-amber-500/10'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                  <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                    <Flame
+                      className={`w-3.5 h-3.5 ${
+                        streakStats.currentStreak > 0
+                          ? 'text-amber-400 fill-amber-400 animate-pulse'
+                          : 'text-zinc-500'
+                      }`}
+                    />
+                  </div>
+                  <span className="text-[11px] sm:text-xs uppercase font-mono tracking-wider">Current Streak</span>
                 </div>
-              ))}
-            </div>
-
-            {/* Grid with Day Labels */}
-            <div className="flex gap-2">
-              {/* Day Labels (Mon, Wed, Fri) */}
-              <div className="flex flex-col justify-between text-[9px] text-zinc-500 font-mono h-[98px] py-[2px] pr-1 select-none">
-                <span className="h-[12px]"></span>
-                <span className="h-[12px] leading-3">Mon</span>
-                <span className="h-[12px]"></span>
-                <span className="h-[12px] leading-3">Wed</span>
-                <span className="h-[12px]"></span>
-                <span className="h-[12px] leading-3">Fri</span>
-                <span className="h-[12px]"></span>
+                {streakStats.isStreakActiveToday ? (
+                  <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    Active
+                  </span>
+                ) : streakStats.isMaintainedFromYesterday ? (
+                  <span className="text-[9px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Due today
+                  </span>
+                ) : streakStats.currentStreak > 0 ? (
+                  <span className="text-[9px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
+                    Active
+                  </span>
+                ) : (
+                  <span className="text-[9px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-500 border border-zinc-800">
+                    Idle
+                  </span>
+                )}
               </div>
 
-              {/* Weeks Columns */}
-              <div className="flex gap-[3px]">
-                {weeks.map((week, wIdx) => (
-                  <div key={wIdx} className="flex flex-col gap-[3px]">
-                    {week.map((day) => {
-                      const isSelected = selectedDay?.date === day.date;
-                      return (
-                        <div
-                          key={day.date}
-                          onClick={() => {
-                            const dayCommits = (commits || []).filter((c) => {
-                              if (!c.committedAt) return false;
-                              try {
-                                const d = new Date(c.committedAt).toISOString().slice(0, 10);
-                                return d === day.date || c.committedAt.startsWith(day.date);
-                              } catch {
-                                return c.committedAt.startsWith(day.date);
-                              }
-                            });
-                            setSelectedDay(
-                              isSelected
-                                ? null
-                                : { date: day.date, count: day.count, commits: dayCommits }
-                            );
-                          }}
-                          onMouseEnter={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const dayCommits = (commits || []).filter((c) => {
-                              if (!c.committedAt) return false;
-                              try {
-                                const d = new Date(c.committedAt).toISOString().slice(0, 10);
-                                return d === day.date || c.committedAt.startsWith(day.date);
-                              } catch {
-                                return c.committedAt.startsWith(day.date);
-                              }
-                            });
-                            setHoveredDay({
-                              date: day.date,
-                              count: day.count,
-                              commits: dayCommits,
-                              x: rect.left + rect.width / 2,
-                              y: rect.top,
-                            });
-                          }}
-                          onMouseLeave={() => setHoveredDay(null)}
-                          className={`w-[11px] h-[11px] sm:w-[12px] sm:h-[12px] rounded-[2px] transition-transform duration-100 hover:scale-125 cursor-pointer ${
-                            isSelected ? 'ring-2 ring-white scale-125 z-10' : ''
-                          } ${getCellColor(day.level)}`}
-                        />
-                      );
-                    })}
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">
+                  {streakStats.currentStreak}
+                </span>
+                <span className="text-xs font-semibold text-zinc-400">
+                  {streakStats.currentStreak === 1 ? 'day' : 'days'}
+                </span>
+              </div>
+
+              <div className="text-[10px] sm:text-[11px] text-zinc-400 font-mono mt-1 truncate">
+                {streakStats.currentStreak > 0
+                  ? formatStreakRange(streakStats.currentStreakStart, streakStats.currentStreakEnd)
+                  : 'Push code today to ignite'}
+              </div>
+
+              <div className="text-[9px] text-zinc-500 mt-1 flex items-center justify-between">
+                <span>
+                  {streakStats.isStreakActiveToday
+                    ? 'Committed today'
+                    : streakStats.isMaintainedFromYesterday
+                    ? 'Yesterday active'
+                    : 'Click to highlight'}
+                </span>
+                <span className="text-[9px] text-amber-400/80 group-hover:underline">Highlight</span>
+              </div>
+            </div>
+
+            {/* Card 2: Longest Streak */}
+            <div
+              onClick={() => setStreakHighlight((prev) => (prev === 'longest' ? null : 'longest'))}
+              onMouseEnter={() => setStreakHighlight('longest')}
+              onMouseLeave={() => setStreakHighlight(null)}
+              className={`group relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/10 via-zinc-900/90 to-zinc-950 border p-3.5 sm:p-4 transition-all cursor-pointer ${
+                streakHighlight === 'longest'
+                  ? 'border-emerald-400 ring-2 ring-emerald-400/40 shadow-lg shadow-emerald-500/20 scale-[1.01]'
+                  : 'border-emerald-500/30 hover:border-emerald-400/60 hover:shadow-md hover:shadow-emerald-500/10'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                    <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
+                  <span className="text-[11px] sm:text-xs uppercase font-mono tracking-wider">Longest Streak</span>
+                </div>
+                <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Record
+                </span>
+              </div>
+
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">
+                  {streakStats.longestStreak}
+                </span>
+                <span className="text-xs font-semibold text-zinc-400">
+                  {streakStats.longestStreak === 1 ? 'day' : 'days'}
+                </span>
+              </div>
+
+              <div className="text-[10px] sm:text-[11px] text-zinc-400 font-mono mt-1 truncate">
+                {streakStats.longestStreak > 0
+                  ? formatStreakRange(streakStats.longestStreakStart, streakStats.longestStreakEnd)
+                  : 'No streaks recorded'}
+              </div>
+
+              <div className="text-[9px] text-zinc-500 mt-1 flex items-center justify-between">
+                <span>Personal best</span>
+                <span className="text-[9px] text-emerald-400/80 group-hover:underline">Highlight</span>
+              </div>
+            </div>
+
+            {/* Card 3: Active Days */}
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-sky-500/10 via-zinc-900/90 to-zinc-950 border border-sky-500/30 p-3.5 sm:p-4 transition-all hover:border-sky-400/50">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400">
+                  <div className="w-6 h-6 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
+                    <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                  </div>
+                  <span className="text-[11px] sm:text-xs uppercase font-mono tracking-wider">Active Days</span>
+                </div>
+                <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                  {streakStats.consistencyPercentage}%
+                </span>
+              </div>
+
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">
+                  {streakStats.totalActiveDays}
+                </span>
+                <span className="text-xs font-semibold text-zinc-400">
+                  / {streakStats.totalRecordedDays} days
+                </span>
+              </div>
+
+              <div className="text-[10px] sm:text-[11px] text-zinc-400 font-mono mt-1 truncate">
+                {streakStats.consistencyPercentage}% commit consistency
+              </div>
+
+              <div className="text-[9px] text-zinc-500 mt-1">
+                Past 365 days window
+              </div>
+            </div>
+
+            {/* Card 4: Total Contributions */}
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/10 via-zinc-900/90 to-zinc-950 border border-purple-500/30 p-3.5 sm:p-4 transition-all hover:border-purple-400/50">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
+                  <div className="w-6 h-6 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+                    <GitCommit className="w-3.5 h-3.5 text-purple-400" />
+                  </div>
+                  <span className="text-[11px] sm:text-xs uppercase font-mono tracking-wider">Contributions</span>
+                </div>
+                <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                  Yearly
+                </span>
+              </div>
+
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">
+                  {totalContributions.toLocaleString()}
+                </span>
+                <span className="text-xs font-semibold text-zinc-400">
+                  total
+                </span>
+              </div>
+
+              <div className="text-[10px] sm:text-[11px] text-zinc-400 font-mono mt-1 truncate">
+                {streakStats.totalActiveDays > 0
+                  ? `~${(totalContributions / streakStats.totalActiveDays).toFixed(1)} per active day`
+                  : '0 per active day'}
+              </div>
+
+              <div className="text-[9px] text-zinc-500 mt-1">
+                Commits, PRs & reviews
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Contribution Graph */}
+          <div className="rounded-xl border border-zinc-800 bg-[#0d1117] p-4 sm:p-5 overflow-x-auto relative shadow-inner">
+            <div className="min-w-[720px] flex flex-col">
+              {/* Months Header Row */}
+              <div className="flex text-[10px] text-zinc-400 font-mono mb-2 pl-8 relative h-4">
+                {monthLabels.map((m, idx) => (
+                  <div
+                    key={`${m.label}-${idx}`}
+                    className="absolute"
+                    style={{ left: `calc(${m.weekIndex * 14}px + 2rem)` }}
+                  >
+                    {m.label}
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Selected Day Commits Breakdown */}
-            {selectedDay && (
-              <div className="mt-3 p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs animate-in fade-in duration-150">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white font-mono">
-                      {formatDayTooltip(selectedDay.date)}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
-                      {selectedDay.count} contribution{selectedDay.count > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setSelectedDay(null)}
-                    className="text-zinc-500 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800"
-                  >
-                    ✕ Close
-                  </button>
+              {/* Grid with Day Labels */}
+              <div className="flex gap-2">
+                {/* Day Labels (Mon, Wed, Fri) */}
+                <div className="flex flex-col justify-between text-[9px] text-zinc-500 font-mono h-[98px] py-[2px] pr-1 select-none">
+                  <span className="h-[12px]"></span>
+                  <span className="h-[12px] leading-3">Mon</span>
+                  <span className="h-[12px]"></span>
+                  <span className="h-[12px] leading-3">Wed</span>
+                  <span className="h-[12px]"></span>
+                  <span className="h-[12px] leading-3">Fri</span>
+                  <span className="h-[12px]"></span>
                 </div>
-                {selectedDay.commits.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {selectedDay.commits.map((c) => (
-                      <div
-                        key={c.id || c.shortSha}
-                        className="flex items-center justify-between text-xs p-2 rounded-lg bg-black/50 border border-zinc-800/80"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <GitCommit className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="font-mono text-[10px] text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded shrink-0">
-                            {c.repoName.split('/')[1] || c.repoName}
-                          </span>
-                          <span className="text-zinc-200 truncate">{c.message}</span>
-                        </div>
-                        <a
-                          href={c.commitUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 ml-2 shrink-0"
-                        >
-                          {c.shortSha}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-zinc-400">
-                    {selectedDay.count > 0
-                      ? `${selectedDay.count} contributions on this day were synced to GitHub.`
-                      : 'No commit activity recorded on this day.'}
-                  </p>
-                )}
+
+                {/* Weeks Columns */}
+                <div className="flex gap-[3px]">
+                  {weeks.map((week, wIdx) => (
+                    <div key={wIdx} className="flex flex-col gap-[3px]">
+                      {week.map((day) => {
+                        const isSelected = selectedDay?.date === day.date;
+                        const isCurrentStreakDay = streakStats.currentStreakDates.includes(day.date);
+                        const isLongestStreakDay = streakStats.longestStreakDates.includes(day.date);
+
+                        const isHighlighted =
+                          (streakHighlight === 'current' && isCurrentStreakDay) ||
+                          (streakHighlight === 'longest' && isLongestStreakDay);
+
+                        return (
+                          <div
+                            key={day.date}
+                            onClick={() => {
+                              const dayCommits = (commits || []).filter((c) => {
+                                if (!c.committedAt) return false;
+                                try {
+                                  const d = new Date(c.committedAt).toISOString().slice(0, 10);
+                                  return d === day.date || c.committedAt.startsWith(day.date);
+                                } catch {
+                                  return c.committedAt.startsWith(day.date);
+                                }
+                              });
+                              setSelectedDay(
+                                isSelected
+                                  ? null
+                                  : { date: day.date, count: day.count, commits: dayCommits }
+                              );
+                            }}
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const dayCommits = (commits || []).filter((c) => {
+                                if (!c.committedAt) return false;
+                                try {
+                                  const d = new Date(c.committedAt).toISOString().slice(0, 10);
+                                  return d === day.date || c.committedAt.startsWith(day.date);
+                                } catch {
+                                  return c.committedAt.startsWith(day.date);
+                                }
+                              });
+                              setHoveredDay({
+                                date: day.date,
+                                count: day.count,
+                                commits: dayCommits,
+                                x: rect.left + rect.width / 2,
+                                y: rect.top,
+                              });
+                            }}
+                            onMouseLeave={() => setHoveredDay(null)}
+                            className={`w-[11px] h-[11px] sm:w-[12px] sm:h-[12px] rounded-[2px] transition-all duration-150 cursor-pointer ${
+                              isSelected
+                                ? 'ring-2 ring-white scale-125 z-20 shadow-md'
+                                : isHighlighted
+                                ? streakHighlight === 'current'
+                                  ? 'ring-2 ring-amber-400 scale-125 z-10 shadow-md shadow-amber-500/60'
+                                  : 'ring-2 ring-emerald-300 scale-125 z-10 shadow-md shadow-emerald-400/60'
+                                : 'hover:scale-125'
+                            } ${getCellColor(day.level)}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
 
-            {/* Bottom Footer: Learn link & Legend */}
-            <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-4 mt-2 border-t border-zinc-800/60">
-              <a
-                href="https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/managing-contribution-settings-on-your-profile/why-are-my-contributions-not-showing-up-on-my-profile"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-zinc-500 hover:text-zinc-300 transition-colors text-[11px]"
-              >
-                Learn how we count contributions
-              </a>
+              {/* Selected Day Commits Breakdown */}
+              {selectedDay && (
+                <div className="mt-3 p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white font-mono">
+                        {formatDayTooltip(selectedDay.date)}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
+                        {selectedDay.count} contribution{selectedDay.count > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedDay(null)}
+                      className="text-zinc-500 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  {selectedDay.commits.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {selectedDay.commits.map((c) => (
+                        <div
+                          key={c.id || c.shortSha}
+                          className="flex items-center justify-between text-xs p-2 rounded-lg bg-black/50 border border-zinc-800/80"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <GitCommit className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="font-mono text-[10px] text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded shrink-0">
+                              {c.repoName.split('/')[1] || c.repoName}
+                            </span>
+                            <span className="text-zinc-200 truncate">{c.message}</span>
+                          </div>
+                          <a
+                            href={c.commitUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 ml-2 shrink-0"
+                          >
+                            {c.shortSha}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-zinc-400">
+                      {selectedDay.count > 0
+                        ? `${selectedDay.count} contributions on this day were synced to GitHub.`
+                        : 'No commit activity recorded on this day.'}
+                    </p>
+                  )}
+                </div>
+              )}
 
-              <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-mono">
-                <span>Less</span>
-                <div className="w-[11px] h-[11px] rounded-[2px] bg-[#161b22] border border-zinc-800" />
-                <div className="w-[11px] h-[11px] rounded-[2px] bg-[#0e4429] border border-[#006d32]/50" />
-                <div className="w-[11px] h-[11px] rounded-[2px] bg-[#006d32] border border-[#26a641]/60" />
-                <div className="w-[11px] h-[11px] rounded-[2px] bg-[#26a641] border border-[#39d353]/70" />
-                <div className="w-[11px] h-[11px] rounded-[2px] bg-[#39d353] border border-emerald-300" />
-                <span>More</span>
+              {/* Bottom Footer: Learn link, streak clear, & Legend */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-zinc-400 pt-4 mt-2 border-t border-zinc-800/60">
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/managing-contribution-settings-on-your-profile/why-are-my-contributions-not-showing-up-on-my-profile"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-500 hover:text-zinc-300 transition-colors text-[11px]"
+                  >
+                    Learn how we count contributions
+                  </a>
+                  {streakHighlight && (
+                    <button
+                      type="button"
+                      onClick={() => setStreakHighlight(null)}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 transition-all font-mono"
+                    >
+                      ✕ Clear {streakHighlight} streak highlight
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-mono">
+                  <span>Less</span>
+                  <div className="w-[11px] h-[11px] rounded-[2px] bg-[#161b22] border border-zinc-800" />
+                  <div className="w-[11px] h-[11px] rounded-[2px] bg-[#0e4429] border border-[#006d32]/50" />
+                  <div className="w-[11px] h-[11px] rounded-[2px] bg-[#006d32] border border-[#26a641]/60" />
+                  <div className="w-[11px] h-[11px] rounded-[2px] bg-[#26a641] border border-[#39d353]/70" />
+                  <div className="w-[11px] h-[11px] rounded-[2px] bg-[#39d353] border border-emerald-300" />
+                  <span>More</span>
+                </div>
               </div>
             </div>
           </div>
@@ -395,6 +653,25 @@ export function GitHubContributionGraph({
               {formatDayTooltip(hoveredDay.date)}
             </span>
           </div>
+
+          {/* Streak Status Pill in Tooltip */}
+          {(streakStats.currentStreakDates.includes(hoveredDay.date) ||
+            streakStats.longestStreakDates.includes(hoveredDay.date)) && (
+            <div className="py-1 flex items-center gap-1.5 text-[10px] font-semibold border-b border-zinc-800/80">
+              {streakStats.currentStreakDates.includes(hoveredDay.date) && (
+                <span className="text-amber-400 flex items-center gap-1">
+                  <Flame className="w-3 h-3 fill-amber-400 text-amber-400" />
+                  Current streak ({streakStats.currentStreak}d)
+                </span>
+              )}
+              {streakStats.longestStreakDates.includes(hoveredDay.date) && (
+                <span className="text-emerald-400 flex items-center gap-1 ml-auto">
+                  <Trophy className="w-3 h-3 text-emerald-400" />
+                  Record ({streakStats.longestStreak}d)
+                </span>
+              )}
+            </div>
+          )}
 
           {hoveredDay.commits.length > 0 ? (
             <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">

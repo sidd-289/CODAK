@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { StudentCodingProfilesData } from '@/types/codingProfiles';
 import {
@@ -16,9 +16,11 @@ import {
   Copy,
   Check,
   Sparkles,
+  Flame,
 } from 'lucide-react';
 import { cleanHandle } from '@/lib/external-profiles/fetchers';
 import { createClient } from '@/lib/supabase/client';
+import { calculateGitHubStreak } from '@/lib/external-profiles/githubStreak';
 
 interface ExternalCodingProfilesSectionProps {
   data: StudentCodingProfilesData;
@@ -50,6 +52,13 @@ export function ExternalCodingProfilesSection({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const githubStreakStats = useMemo(() => {
+    return calculateGitHubStreak(
+      data.githubCalendar?.days || [],
+      data.recentGithubCommits || []
+    );
+  }, [data.githubCalendar, data.recentGithubCommits]);
 
   // Modal state
   const [leetcodeInput, setLeetcodeInput] = useState(data.leetcodeHandle || '');
@@ -394,7 +403,7 @@ export function ExternalCodingProfilesSection({
                   <span className="text-[10px] text-zinc-400">Public Repos</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-800/60">
+                <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-zinc-800/60">
                   <div className="bg-zinc-950/60 p-2 rounded border border-zinc-800/60">
                     <span className="text-[10px] text-zinc-500 block">Followers</span>
                     <span className="text-xs font-mono font-bold text-zinc-200">
@@ -405,6 +414,13 @@ export function ExternalCodingProfilesSection({
                     <span className="text-[10px] text-zinc-500 block">Commits</span>
                     <span className="text-xs font-mono font-bold text-sky-400">
                       {data.recentGithubCommits.length}
+                    </span>
+                  </div>
+                  <div className="bg-zinc-950/60 p-2 rounded border border-zinc-800/60">
+                    <span className="text-[10px] text-zinc-500 block">Streak</span>
+                    <span className="text-xs font-mono font-bold text-amber-400 flex items-center gap-1">
+                      <Flame className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      {githubStreakStats.currentStreak}d
                     </span>
                   </div>
                 </div>
